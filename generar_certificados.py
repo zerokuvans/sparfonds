@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 def generar_certificados():
-    print("Generando certificados SSL autofirmados para desarrollo...")
+    print("Generando certificados SSL autofirmados para SparFonds...")
     
     # Verificar si OpenSSL está disponible
     try:
@@ -31,16 +31,20 @@ def generar_certificados():
     
     # Generar certificado autofirmado
     try:
-        # Generar clave privada y certificado en un solo comando
+        # Generar clave privada y certificado en un solo comando con datos de SparFonds
         subprocess.run([
             "openssl", "req", "-x509", "-newkey", "rsa:4096", "-nodes",
             "-out", cert_path, "-keyout", key_path,
-            "-days", "365", "-subj", "/CN=localhost"
+            "-days", "365", "-subj", "/C=ES/ST=Madrid/L=Madrid/O=SparFonds/OU=Desarrollo/CN=sparfonds.local"
         ], check=True)
         
-        print("Certificados generados exitosamente en:", cert_dir)
-        print("\nNOTA: Este es un certificado autofirmado para desarrollo.")
+        print("Certificados SSL para SparFonds generados exitosamente en:", cert_dir)
+        print("\nNOTA: Este es un certificado autofirmado específico para SparFonds en entorno de desarrollo.")
         print("En producción, debe usar certificados emitidos por una autoridad certificadora confiable.")
+        print("\nDetalles del certificado:")
+        print(" - Organización: SparFonds")
+        print(" - Nombre común: sparfonds.local")
+        print(" - Validez: 365 días")
         return True
     except subprocess.SubprocessError as e:
         print(f"Error al generar certificados: {e}")

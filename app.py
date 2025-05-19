@@ -686,9 +686,9 @@ if __name__ == '__main__':
     ssl_context = crear_contexto_ssl()
     if ssl_context:
         # Ejecutar con SSL
-        print("Iniciando servidor con SSL en https://localhost:8080")
-        app.run(debug=True, ssl_context=ssl_context, host='0.0.0.0', port=8080)
+        print("Iniciando servidor con SSL en https://localhost:8081")
+        app.run(debug=True, ssl_context=ssl_context, host='0.0.0.0', port=8081)
     else:
         print("ADVERTENCIA: Ejecutando sin SSL. Genere certificados con 'python generar_certificados.py'")
-        print("El servidor estará disponible en http://localhost:8080")
-        app.run(debug=True, host='0.0.0.0', port=8080)
+        print("El servidor estará disponible en http://localhost:8081")
+        app.run(debug=True, host='0.0.0.0', port=8081)
