@@ -1,0 +1,148 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Panel de Administración</h4>
+            </div>
+            <div class="card-body">
+                <p>Bienvenido al panel de administración. Aquí puedes gestionar usuarios, validar ahorros y aprobar préstamos.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Ahorros Pendientes de Validación</h5>
+            </div>
+            <div class="card-body">
+                {% if ahorros_pendientes %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Monto</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ahorro in ahorros_pendientes %}
+                            <tr>
+                                <td>{{ ahorro.nombre }} {{ ahorro.apellido }}</td>
+                                <td>${{ ahorro.monto }}</td>
+                                <td>{{ ahorro.fecha }}</td>
+                                <td>
+                                    <a href="{{ url_for('validar_ahorro', ahorro_id=ahorro.id, accion='aprobar') }}" class="btn btn-success btn-sm">Aprobar</a>
+                                    <a href="{{ url_for('validar_ahorro', ahorro_id=ahorro.id, accion='rechazar') }}" class="btn btn-danger btn-sm">Rechazar</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p>No hay ahorros pendientes de validación.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Préstamos Pendientes de Aprobación</h5>
+            </div>
+            <div class="card-body">
+                {% if prestamos_pendientes %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Monto</th>
+                                <th>Plazo</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prestamo in prestamos_pendientes %}
+                            <tr>
+                                <td>{{ prestamo.nombre }} {{ prestamo.apellido }}</td>
+                                <td>${{ prestamo.monto }}</td>
+                                <td>{{ prestamo.plazo_meses }} meses</td>
+                                <td>{{ prestamo.fecha_solicitud }}</td>
+                                <td>
+                                    <form action="{{ url_for('validar_prestamo', prestamo_id=prestamo.id, accion='aprobar') }}" method="POST" class="d-inline">
+                                        <div class="input-group input-group-sm mb-2">
+                                            <span class="input-group-text">Tasa %</span>
+                                            <input type="number" step="0.01" min="1" max="30" class="form-control" name="tasa_interes" required>
+                                        </div>
+                                        <button type="submit" class="btn btn-success btn-sm">Aprobar</button>
+                                    </form>
+                                    <a href="{{ url_for('validar_prestamo', prestamo_id=prestamo.id, accion='rechazar') }}" class="btn btn-danger btn-sm">Rechazar</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p>No hay préstamos pendientes de aprobación.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Gestión de Usuarios</h5>
+            </div>
+            <div class="card-body">
+                {% if usuarios %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Apellido</th>
+                                <th>Email</th>
+                                <th>Rol</th>
+                                <th>Fecha Registro</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for usuario in usuarios %}
+                            <tr>
+                                <td>{{ usuario.nombre }}</td>
+                                <td>{{ usuario.apellido }}</td>
+                                <td>{{ usuario.email }}</td>
+                                <td>{{ usuario.rol }}</td>
+                                <td>{{ usuario.fecha_registro }}</td>
+                                <td>
+                                    <a href="{{ url_for('cambiar_rol', usuario_id=usuario.id) }}" class="btn btn-primary btn-sm">Cambiar Rol</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p>No hay usuarios registrados.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

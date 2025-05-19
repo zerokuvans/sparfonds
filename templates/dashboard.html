@@ -1,0 +1,83 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h2 class="mb-4">Panel de Control</h2>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="summary-box savings">
+            <h3>${{ total_ahorros }}</h3>
+            <p>Total Ahorrado (Validado)</p>
+            {% if total_pendiente > 0 %}
+            <div class="mt-2">
+                <span class="badge bg-warning text-dark">Pendiente: ${{ total_pendiente }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Mis Préstamos</h5>
+            </div>
+            <div class="card-body">
+                {% if prestamos %}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Monto</th>
+                            <th>Tasa</th>
+                            <th>Plazo</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for prestamo in prestamos %}
+                        <tr>
+                            <td>${{ "%.2f"|format(prestamo.monto) }}</td>
+                            <td>{{ "%.2f"|format(prestamo.tasa_interes) }}%</td>
+                            <td>{{ prestamo.plazo_meses }} meses</td>
+                            <td>
+                                {% if prestamo.estado == 'pendiente' %}
+                                <span class="badge bg-warning">Pendiente</span>
+                                {% elif prestamo.estado == 'aprobado' %}
+                                <span class="badge bg-success">Aprobado</span>
+                                {% elif prestamo.estado == 'rechazado' %}
+                                <span class="badge bg-danger">Rechazado</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ prestamo.estado }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p>No tienes préstamos activos.</p>
+                {% endif %}
+                <a href="{{ url_for('prestamos') }}" class="btn btn-primary">Solicitar Préstamo</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Resumen de Actividad</h5>
+            </div>
+            <div class="card-body">
+                <p>Bienvenido a tu panel de control. Aquí puedes gestionar tus ahorros y préstamos de manera fácil y segura.</p>
+                <ul>
+                    <li>Realiza depósitos a tu cuenta de ahorros</li>
+                    <li>Solicita préstamos con tasas competitivas</li>
+                    <li>Consulta el estado de tus solicitudes</li>
+                    <li>Visualiza tu historial financiero</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

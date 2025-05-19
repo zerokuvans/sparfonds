@@ -1,0 +1,88 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h2 class="mb-4">Calculadora de Préstamos</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Calcular Préstamo</h5>
+            </div>
+            <div class="card-body loan-calculator" id="loan-calculator">
+                <div class="mb-3">
+                    <label for="loan-amount" class="form-label">Monto del Préstamo</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" id="loan-amount" min="100" step="100" value="5000">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="interest-rate" class="form-label">Tasa de Interés Anual (%)</label>
+                    <input type="number" class="form-control" id="interest-rate" min="1" max="20" step="0.1" value="5.0">
+                </div>
+                <div class="mb-3">
+                    <label for="loan-term" class="form-label">Plazo (meses)</label>
+                    <select class="form-select" id="loan-term">
+                        <option value="3">3 meses</option>
+                        <option value="6">6 meses</option>
+                        <option value="12" selected>12 meses</option>
+                        <option value="24">24 meses</option>
+                        <option value="36">36 meses</option>
+                        <option value="48">48 meses</option>
+                        <option value="60">60 meses</option>
+                    </select>
+                </div>
+                <button id="calculate-loan" class="btn btn-primary">Calcular</button>
+                
+                <div id="loan-result" class="loan-result mt-4">
+                    <h5>Resultados del Préstamo</h5>
+                    <table class="table table-bordered">
+                        <tr>
+                            <td>Pago Mensual:</td>
+                            <td>$<span id="monthly-payment">0.00</span></td>
+                        </tr>
+                        <tr>
+                            <td>Total a Pagar:</td>
+                            <td>$<span id="total-payment">0.00</span></td>
+                        </tr>
+                        <tr>
+                            <td>Total Intereses:</td>
+                            <td>$<span id="total-interest">0.00</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Información sobre Préstamos</h5>
+            </div>
+            <div class="card-body">
+                <h5>¿Cómo funciona nuestra calculadora?</h5>
+                <p>Esta herramienta te permite calcular:</p>
+                <ul>
+                    <li>El pago mensual de tu préstamo</li>
+                    <li>El monto total que pagarás</li>
+                    <li>El total de intereses que pagarás</li>
+                </ul>
+                
+                <h5 class="mt-4">Consejos para solicitar un préstamo</h5>
+                <ul>
+                    <li>Solicita solo lo que necesitas y puedes pagar</li>
+                    <li>Considera plazos más cortos para pagar menos intereses</li>
+                    <li>Mantén un buen historial de ahorros para mejorar tus posibilidades de aprobación</li>
+                    <li>Revisa diferentes opciones de plazo para encontrar el pago mensual que mejor se adapte a tu presupuesto</li>
+                </ul>
+                
+                <div class="alert alert-info mt-3">
+                    <strong>Nota:</strong> Esta calculadora proporciona una estimación. Los términos finales pueden variar según la evaluación de tu solicitud.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

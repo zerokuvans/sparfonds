@@ -1,0 +1,129 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h2 class="mb-4">Mi Perfil</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Información Personal</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('perfil') }}" class="needs-validation" novalidate>
+                    <div class="mb-3">
+                        <label for="nombre" class="form-label">Nombre</label>
+                        <input type="text" class="form-control" id="nombre" name="nombre" value="{{ usuario.nombre }}" required>
+                        <div class="invalid-feedback">
+                            Por favor ingresa tu nombre.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="apellido" class="form-label">Apellido</label>
+                        <input type="text" class="form-control" id="apellido" name="apellido" value="{{ usuario.apellido }}" required>
+                        <div class="invalid-feedback">
+                            Por favor ingresa tu apellido.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Correo Electrónico</label>
+                        <input type="email" class="form-control" id="email" name="email" value="{{ usuario.email }}" required>
+                        <div class="invalid-feedback">
+                            Por favor ingresa un correo electrónico válido.
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Actualizar Información</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Cambiar Contraseña</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('cambiar_password') }}" class="needs-validation" novalidate>
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Contraseña Actual</label>
+                        <input type="password" class="form-control" id="current_password" name="current_password" required>
+                        <div class="invalid-feedback">
+                            Por favor ingresa tu contraseña actual.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Nueva Contraseña</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" required>
+                        <div class="invalid-feedback">
+                            Por favor ingresa una nueva contraseña.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirmar Nueva Contraseña</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                        <div class="invalid-feedback">
+                            Por favor confirma tu nueva contraseña.
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-warning">Cambiar Contraseña</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Resumen de Cuenta</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <h5>Ahorros Totales</h5>
+                        <h3 class="currency">{{ total_ahorros }}</h3>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h5>Préstamos Activos</h5>
+                        <h3>{{ num_prestamos }}</h3>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h5>Miembro desde</h5>
+                        <h3>{{ usuario.fecha_registro.strftime('%d/%m/%Y') }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Validación de contraseñas coincidentes
+    document.addEventListener('DOMContentLoaded', function() {
+        const newPassword = document.getElementById('new_password');
+        const confirmPassword = document.getElementById('confirm_password');
+        const passwordForm = document.querySelector('form[action*="cambiar_password"]');
+        
+        passwordForm.addEventListener('submit', function(event) {
+            if (newPassword.value !== confirmPassword.value) {
+                event.preventDefault();
+                event.stopPropagation();
+                confirmPassword.setCustomValidity('Las contraseñas no coinciden');
+                confirmPassword.reportValidity();
+            } else {
+                confirmPassword.setCustomValidity('');
+            }
+        });
+        
+        confirmPassword.addEventListener('input', function() {
+            if (newPassword.value !== confirmPassword.value) {
+                confirmPassword.setCustomValidity('Las contraseñas no coinciden');
+            } else {
+                confirmPassword.setCustomValidity('');
+            }
+        });
+    });
+</script>
+{% endblock %}

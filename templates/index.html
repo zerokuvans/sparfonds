@@ -1,0 +1,42 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="jumbotron">
+    <h1 class="display-4">Bienvenido a SparFonds</h1>
+    <p class="lead">Tu plataforma de ahorro y préstamos confiable.</p>
+    <hr class="my-4">
+    <p>Administra tus ahorros y solicita préstamos de manera fácil y segura.</p>
+    {% if 'user_id' not in session %}
+    <a class="btn btn-primary btn-lg" href="{{ url_for('registro') }}" role="button">Regístrate ahora</a>
+    {% else %}
+    <a class="btn btn-primary btn-lg" href="{{ url_for('dashboard') }}" role="button">Ir a mi panel</a>
+    {% endif %}
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Ahorra con nosotros</h5>
+                <p class="card-text">Comienza a ahorrar hoy mismo y construye un futuro financiero sólido.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Préstamos accesibles</h5>
+                <p class="card-text">Solicita préstamos con tasas de interés competitivas y plazos flexibles.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Gestión transparente</h5>
+                <p class="card-text">Accede a tu información financiera en tiempo real desde cualquier dispositivo.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
