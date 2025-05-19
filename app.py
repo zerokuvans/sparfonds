@@ -1,31 +1,51 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
 import os
+import certifi
+import ssl
 from datetime import datetime
 from flask import g
 import hashlib
 from functools import wraps
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde el archivo .env
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+
+# Configuración para redirigir HTTP a HTTPS
+app.config['PREFERRED_URL_SCHEME'] = 'https'
+
+# Importar configuración SSL
+from ssl_config import certificados_ssl_existen, obtener_rutas_certificados, configurar_seguridad_produccion, crear_contexto_ssl
+
+# Configurar seguridad en producción
+if os.environ.get('FLASK_ENV') == 'production':
+    app = configurar_seguridad_produccion(app)
 
 # Context processor para proporcionar variables a todas las plantillas
 @app.context_processor
 def inject_now():
     return {'now': datetime.now()}
 
-# Configuración de la base de datos MySQL
+# Configuración de la base de datos MySQL desde variables de entorno
 db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '732137A031E4b@',
-    'database': 'sparfonds'
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', ''),
+    'database': os.getenv('DB_NAME', 'sparfonds')
 }
 
 # Función para conectar a la base de datos
 def get_db_connection():
     try:
-        conn = mysql.connector.connect(**db_config)
+        # Usar certifi para proporcionar una ruta a certificados confiables
+        ssl_ca = certifi.where()
+        config = db_config.copy()
+        config['ssl_ca'] = ssl_ca
+        conn = mysql.connector.connect(**config)
         return conn
     except mysql.connector.Error as err:
         print(f"Error de conexión a la base de datos: {err}")
@@ -635,7 +655,40 @@ def crear_admin_inicial():
         conn.close()
 
 # Iniciar la aplicación
+# Función para verificar si los certificados SSL existen
+def certificados_ssl_existen():
+    cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certificates")
+    cert_path = os.path.join(cert_dir, "cert.pem")
+    key_path = os.path.join(cert_dir, "key.pem")
+    return os.path.exists(cert_path) and os.path.exists(key_path)
+
+# Función para obtener las rutas de los certificados SSL
+def obtener_rutas_certificados():
+    cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certificates")
+    return {
+        'cert': os.path.join(cert_dir, "cert.pem"),
+        'key': os.path.join(cert_dir, "key.pem")
+    }
+
+# Ruta para redirigir HTTP a HTTPS
+@app.before_request
+def redirigir_a_https():
+    # Solo redirigir en producción y cuando no sea una solicitud HTTPS
+    if os.environ.get('FLASK_ENV') == 'production' and not request.is_secure:
+        url = request.url.replace('http://', 'https://', 1)
+        return redirect(url, code=301)
+
 if __name__ == '__main__':
     setup_database()
     crear_admin_inicial()
-    app.run(debug=True)
+    
+    # Verificar si existen certificados SSL
+    ssl_context = crear_contexto_ssl()
+    if ssl_context:
+        # Ejecutar con SSL
+        print("Iniciando servidor con SSL en https://localhost:8080")
+        app.run(debug=True, ssl_context=ssl_context, host='0.0.0.0', port=8080)
+    else:
+        print("ADVERTENCIA: Ejecutando sin SSL. Genere certificados con 'python generar_certificados.py'")
+        print("El servidor estará disponible en http://localhost:8080")
+        app.run(debug=True, host='0.0.0.0', port=8080)

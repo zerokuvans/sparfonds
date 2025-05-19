@@ -2,13 +2,17 @@
 import mysql.connector
 import sys
 import os
+from dotenv import load_dotenv
 
-# Configuración de la base de datos MySQL
+# Cargar variables de entorno desde el archivo .env
+load_dotenv()
+
+# Configuración de la base de datos MySQL desde variables de entorno
 db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '732137A031E4b@',
-    'database': 'sparfonds'
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', ''),
+    'database': os.getenv('DB_NAME', 'sparfonds')
 }
 
 # Función para conectar a la base de datos

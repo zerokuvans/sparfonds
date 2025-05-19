@@ -7,3 +7,5 @@ itsdangerous==2.1.2
 click==8.1.7
 blinker==1.6.2
 PyMySQL==1.1.0
+certifi==2023.7.22
+python-dotenv==1.0.0
