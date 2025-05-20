@@ -1,10 +1,11 @@
 # Solución a Problemas en SparFonds
 
-Este documento explica cómo resolver tres problemas específicos en la aplicación SparFonds:
+Este documento explica cómo resolver cuatro problemas específicos en la aplicación SparFonds:
 
 1. Error de base de datos con el campo `tasa_interes`
 2. Regeneración de certificados SSL
 3. Modificación del proceso de solicitud de préstamos
+4. Filtrado del historial de movimientos por usuario
 
 ## 1. Solución al Error de Base de Datos
 
@@ -82,8 +83,30 @@ Este script realizará las siguientes acciones:
 
 Después de ejecutar este script, los ahorradores podrán solicitar préstamos sin especificar un plazo. El plazo será establecido cuando el administrador apruebe el préstamo.
 
+## 4. Filtrado del Historial de Movimientos por Usuario
+
+Se ha modificado la aplicación para que el historial de movimientos muestre solo los datos del ahorrador que inició sesión, mientras que los administradores pueden ver el historial completo de cada ahorrador.
+
+### Cambios implementados:
+
+1. **Filtrado de historial para ahorradores:**
+   - La ruta `/historial` ahora muestra solo las transacciones del usuario que ha iniciado sesión
+   - Se mantiene la misma interfaz de usuario para los ahorradores
+
+2. **Nuevo módulo para administradores:**
+   - Se ha creado una nueva ruta `/admin/historial` exclusiva para administradores
+   - Los administradores pueden seleccionar cualquier ahorrador y ver su historial completo
+   - Se pueden filtrar las transacciones por tipo (ahorros, préstamos, pagos)
+
+3. **Acceso al nuevo módulo:**
+   - Inicie sesión como administrador
+   - Vaya al Panel de Administración
+   - Haga clic en el botón "Ver Historial de Ahorradores"
+   - Seleccione un ahorrador de la lista desplegable para ver su historial
+
 ## Notas Adicionales
 
 - Después de aplicar estas soluciones, reinicie la aplicación con `python app.py`
 - Los certificados SSL son solo para entorno de desarrollo. En producción, debe usar certificados emitidos por una autoridad certificadora confiable.
 - La modificación de la estructura de la tabla `prestamos` no afecta a los datos existentes, solo permite que los nuevos préstamos se creen sin tasa de interés inicial y sin plazo inicial.
+- El filtrado del historial de movimientos mejora la privacidad de los datos de los ahorradores mientras proporciona a los administradores una visión completa de todas las transacciones.

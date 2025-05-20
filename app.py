@@ -481,7 +481,7 @@ def historial():
     if conn:
         cursor = conn.cursor(dictionary=True)
         
-        # Obtener ahorros
+        # Obtener ahorros - Solo los del usuario logueado
         cursor.execute("""
             SELECT id, monto, fecha, 'ahorro' as tipo, 'Depósito de ahorro' as descripcion 
             FROM ahorros 
@@ -490,7 +490,7 @@ def historial():
         ahorros = cursor.fetchall()
         transacciones.extend(ahorros)
         
-        # Obtener préstamos
+        # Obtener préstamos - Solo los del usuario logueado
         cursor.execute("""
             SELECT id, monto, fecha_solicitud as fecha, 'prestamo' as tipo, 
                    CONCAT('Préstamo a ', plazo_meses, ' meses') as descripcion 
@@ -500,7 +500,7 @@ def historial():
         prestamos = cursor.fetchall()
         transacciones.extend(prestamos)
         
-        # Obtener pagos de préstamos
+        # Obtener pagos de préstamos - Solo los del usuario logueado
         cursor.execute("""
             SELECT pp.id, pp.monto, pp.fecha, 'pago' as tipo, 
                    'Pago de préstamo' as descripcion 
@@ -535,6 +535,88 @@ def historial():
     
     flash('Error al conectar con la base de datos', 'danger')
     return redirect(url_for('dashboard'))
+
+@app.route('/admin/historial')
+@login_required
+@admin_required
+def admin_historial():
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener todos los usuarios ahorradores para el selector
+        cursor.execute("SELECT * FROM usuarios ORDER BY nombre ASC")
+        usuarios = cursor.fetchall()
+        
+        # Verificar si se ha seleccionado un usuario
+        usuario_id = request.args.get('usuario_id')
+        usuario_seleccionado = None
+        transacciones = []
+        total_ahorros = 0
+        total_prestamos = 0
+        
+        if usuario_id:
+            # Obtener información del usuario seleccionado
+            cursor.execute("SELECT * FROM usuarios WHERE id = %s", (usuario_id,))
+            usuario_seleccionado = cursor.fetchone()
+            
+            if usuario_seleccionado:
+                # Obtener ahorros del usuario seleccionado
+                cursor.execute("""
+                    SELECT id, monto, fecha, 'ahorro' as tipo, 'Depósito de ahorro' as descripcion 
+                    FROM ahorros 
+                    WHERE usuario_id = %s
+                """, (usuario_id,))
+                ahorros = cursor.fetchall()
+                transacciones.extend(ahorros)
+                
+                # Obtener préstamos del usuario seleccionado
+                cursor.execute("""
+                    SELECT id, monto, fecha_solicitud as fecha, 'prestamo' as tipo, 
+                           CONCAT('Préstamo a ', plazo_meses, ' meses') as descripcion 
+                    FROM prestamos 
+                    WHERE usuario_id = %s
+                """, (usuario_id,))
+                prestamos = cursor.fetchall()
+                transacciones.extend(prestamos)
+                
+                # Obtener pagos de préstamos del usuario seleccionado
+                cursor.execute("""
+                    SELECT pp.id, pp.monto, pp.fecha, 'pago' as tipo, 
+                           'Pago de préstamo' as descripcion 
+                    FROM pagos_prestamos pp
+                    JOIN prestamos p ON pp.prestamo_id = p.id
+                    WHERE p.usuario_id = %s
+                """, (usuario_id,))
+                pagos = cursor.fetchall()
+                transacciones.extend(pagos)
+                
+                # Ordenar por fecha (más reciente primero)
+                transacciones.sort(key=lambda x: x['fecha'], reverse=True)
+                
+                # Obtener totales
+                cursor.execute("SELECT SUM(monto) as total_ahorros FROM ahorros WHERE usuario_id = %s", (usuario_id,))
+                total_ahorros = cursor.fetchone()['total_ahorros'] or 0
+                
+                cursor.execute("""
+                    SELECT SUM(monto) as total_prestamos 
+                    FROM prestamos 
+                    WHERE usuario_id = %s AND estado != 'pagado'
+                """, (usuario_id,))
+                total_prestamos = cursor.fetchone()['total_prestamos'] or 0
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('admin_historial.html', 
+                              usuarios=usuarios,
+                              usuario_seleccionado=usuario_seleccionado,
+                              transacciones=transacciones, 
+                              total_ahorros=total_ahorros,
+                              total_prestamos=total_prestamos)
+    
+    flash('Error al conectar con la base de datos', 'danger')
+    return redirect(url_for('admin'))
 
 @app.route('/calculadora')
 @login_required
