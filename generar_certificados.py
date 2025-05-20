@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-def generar_certificados():
+def generar_certificados(forzar=False):
     print("Generando certificados SSL autofirmados para SparFonds...")
     
     # Verificar si OpenSSL está disponible
@@ -25,9 +25,19 @@ def generar_certificados():
     
     # Verificar si los certificados ya existen
     if os.path.exists(cert_path) and os.path.exists(key_path):
-        print("Los certificados ya existen en:", cert_dir)
-        print("Si desea regenerarlos, elimine los archivos existentes primero.")
-        return True
+        if forzar:
+            print("Eliminando certificados existentes para regenerarlos...")
+            try:
+                os.remove(cert_path)
+                os.remove(key_path)
+                print("Certificados eliminados correctamente.")
+            except Exception as e:
+                print(f"Error al eliminar certificados existentes: {e}")
+                return False
+        else:
+            print("Los certificados ya existen en:", cert_dir)
+            print("Si desea regenerarlos, ejecute el script con la opción --forzar")
+            return True
     
     # Generar certificado autofirmado
     try:
@@ -51,4 +61,6 @@ def generar_certificados():
         return False
 
 if __name__ == "__main__":
-    generar_certificados()
+    # Verificar si se pasó el argumento --forzar
+    forzar = "--forzar" in sys.argv
+    generar_certificados(forzar)

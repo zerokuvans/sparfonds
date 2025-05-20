@@ -285,9 +285,49 @@ def admin():
                               ahorros_pendientes=ahorros_pendientes, 
                               prestamos_pendientes=prestamos_pendientes, 
                               usuarios=usuarios)
+
+@app.route('/admin/ahorros', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_ahorros():
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener todos los usuarios ahorradores para el formulario
+        cursor.execute("SELECT * FROM usuarios ORDER BY nombre ASC")
+        usuarios = cursor.fetchall()
+        
+        if request.method == 'POST':
+            usuario_id = int(request.form['usuario_id'])
+            monto = float(request.form['monto'])
+            fecha = request.form['fecha']
+            validado = 1 if 'validado' in request.form else 0
+            
+            # Insertar el nuevo ahorro
+            cursor.execute("INSERT INTO ahorros (usuario_id, monto, fecha, validado) VALUES (%s, %s, %s, %s)", 
+                          (usuario_id, monto, fecha, validado))
+            conn.commit()
+            
+            flash('Ahorro registrado correctamente para el ahorrador.', 'success')
+            return redirect(url_for('admin_ahorros'))
+        
+        # Obtener los últimos ahorros registrados
+        cursor.execute("""
+            SELECT a.*, u.nombre, u.apellido 
+            FROM ahorros a 
+            JOIN usuarios u ON a.usuario_id = u.id 
+            ORDER BY a.fecha DESC LIMIT 10
+        """)
+        ultimos_ahorros = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('admin_ahorros.html', usuarios=usuarios, ultimos_ahorros=ultimos_ahorros)
     
     flash('Error al conectar con la base de datos', 'danger')
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('admin'))
 
 @app.route('/validar_ahorro/<int:ahorro_id>/<accion>')
 @login_required
@@ -328,14 +368,15 @@ def validar_prestamo(prestamo_id, accion):
         
         if accion == 'aprobar':
             if request.method == 'POST':
-                # Obtener la tasa de interés establecida por el administrador
+                # Obtener la tasa de interés y plazo establecidos por el administrador
                 tasa_interes = float(request.form['tasa_interes'])
-                cursor.execute("UPDATE prestamos SET estado = 'aprobado', tasa_interes = %s WHERE id = %s", 
-                              (tasa_interes, prestamo_id))
-                flash('Préstamo aprobado correctamente con tasa de interés del ' + str(tasa_interes) + '%', 'success')
+                plazo_meses = int(request.form['plazo_meses'])
+                cursor.execute("UPDATE prestamos SET estado = 'aprobado', tasa_interes = %s, plazo_meses = %s WHERE id = %s", 
+                              (tasa_interes, plazo_meses, prestamo_id))
+                flash(f'Préstamo aprobado correctamente con tasa de interés del {tasa_interes}% y plazo de {plazo_meses} meses', 'success')
             else:
                 # Si no es POST, redirigir al panel de administración
-                flash('Debe proporcionar una tasa de interés para aprobar el préstamo', 'warning')
+                flash('Debe proporcionar una tasa de interés y plazo para aprobar el préstamo', 'warning')
                 return redirect(url_for('admin'))
         else:
             cursor.execute("UPDATE prestamos SET estado = 'rechazado' WHERE id = %s", (prestamo_id,))
@@ -370,27 +411,11 @@ def cambiar_rol(usuario_id):
     
     return redirect(url_for('admin'))
 
-@app.route('/ahorros', methods=['GET', 'POST'])
+@app.route('/ahorros', methods=['GET'])
 @login_required
 def ahorros():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
-    if request.method == 'POST':
-        monto = float(request.form['monto'])
-        
-        conn = get_db_connection()
-        if conn:
-            cursor = conn.cursor()
-            # Los ahorros se registran con validado=0 por defecto, pendientes de validación por un administrador
-            cursor.execute("INSERT INTO ahorros (usuario_id, monto, validado) VALUES (%s, %s, %s)", 
-                          (session['user_id'], monto, 0))
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
-            flash('Ahorro registrado correctamente. Pendiente de validación por un administrador.', 'success')
-            return redirect(url_for('ahorros'))
     
     # Obtener historial de ahorros del usuario
     conn = get_db_connection()
@@ -414,15 +439,14 @@ def prestamos():
     
     if request.method == 'POST':
         monto = float(request.form['monto'])
-        plazo_meses = int(request.form['plazo_meses'])
         
         conn = get_db_connection()
         if conn:
             cursor = conn.cursor()
             # Los préstamos se registran con estado 'pendiente' por defecto, esperando aprobación de un administrador
-            # La tasa de interés será establecida por el administrador al aprobar el préstamo
-            cursor.execute("INSERT INTO prestamos (usuario_id, monto, plazo_meses, estado) VALUES (%s, %s, %s, %s)",
-                          (session['user_id'], monto, plazo_meses, 'pendiente'))
+            # La tasa de interés y el plazo serán establecidos por el administrador al aprobar el préstamo
+            cursor.execute("INSERT INTO prestamos (usuario_id, monto, estado) VALUES (%s, %s, %s)",
+                          (session['user_id'], monto, 'pendiente'))
             conn.commit()
             cursor.close()
             conn.close()
