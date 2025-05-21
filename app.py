@@ -454,12 +454,31 @@ def prestamos():
             flash('Solicitud de préstamo enviada correctamente. Pendiente de aprobación por un administrador.', 'success')
             return redirect(url_for('prestamos'))
     
-    # Obtener historial de préstamos del usuario
+    # Obtener historial de préstamos del usuario con saldo pendiente y pagos
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM prestamos WHERE usuario_id = %s ORDER BY fecha_solicitud DESC", (session['user_id'],))
         historial_prestamos = cursor.fetchall()
+        
+        # Para cada préstamo aprobado, calcular el saldo pendiente y obtener historial de pagos
+        for prestamo in historial_prestamos:
+            if prestamo['estado'] == 'aprobado':
+                # Obtener la suma de pagos realizados para este préstamo
+                cursor.execute("SELECT SUM(monto) as total_pagado FROM pagos_prestamos WHERE prestamo_id = %s", (prestamo['id'],))
+                resultado = cursor.fetchone()
+                total_pagado = resultado['total_pagado'] if resultado['total_pagado'] else 0
+                
+                # Calcular saldo pendiente
+                prestamo['saldo_pendiente'] = round(float(prestamo['monto']) - float(total_pagado), 2)
+                
+                # Obtener historial de pagos
+                cursor.execute("SELECT * FROM pagos_prestamos WHERE prestamo_id = %s ORDER BY fecha DESC", (prestamo['id'],))
+                prestamo['pagos'] = cursor.fetchall()
+            else:
+                prestamo['saldo_pendiente'] = prestamo['monto']
+                prestamo['pagos'] = []
+        
         cursor.close()
         conn.close()
         
@@ -694,6 +713,116 @@ def cambiar_password():
         flash('Error al conectar con la base de datos', 'danger')
     
     return redirect(url_for('perfil'))
+
+@app.route('/admin/pagos_prestamos', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_pagos_prestamos():
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener todos los usuarios ahorradores para el formulario
+        cursor.execute("SELECT * FROM usuarios WHERE rol = 'ahorrador' ORDER BY nombre ASC")
+        usuarios = cursor.fetchall()
+        
+        if request.method == 'POST':
+            prestamo_id = int(request.form['prestamo_id'])
+            monto = float(request.form['monto'])
+            fecha = request.form['fecha']
+            
+            # Verificar que el préstamo existe y está aprobado
+            cursor.execute("SELECT * FROM prestamos WHERE id = %s AND estado = 'aprobado'", (prestamo_id,))
+            prestamo = cursor.fetchone()
+            
+            if not prestamo:
+                flash('El préstamo seleccionado no existe o no está aprobado', 'danger')
+                return redirect(url_for('admin_pagos_prestamos'))
+            
+            # Obtener la suma de pagos realizados para este préstamo
+            cursor.execute("SELECT SUM(monto) as total_pagado FROM pagos_prestamos WHERE prestamo_id = %s", (prestamo_id,))
+            resultado = cursor.fetchone()
+            total_pagado = resultado['total_pagado'] if resultado['total_pagado'] else 0
+            
+            # Calcular saldo pendiente antes del nuevo pago
+            saldo_pendiente = float(prestamo['monto']) - float(total_pagado)
+            
+            # Verificar que el monto del pago no exceda el saldo pendiente
+            if monto > saldo_pendiente:
+                flash(f'El monto del pago (${monto}) excede el saldo pendiente (${saldo_pendiente})', 'danger')
+                return redirect(url_for('admin_pagos_prestamos'))
+            
+            # Insertar el nuevo pago
+            cursor.execute("INSERT INTO pagos_prestamos (prestamo_id, monto, fecha) VALUES (%s, %s, %s)", 
+                          (prestamo_id, monto, fecha))
+            
+            # Si con este pago se completa el préstamo, actualizar su estado
+            nuevo_saldo = saldo_pendiente - monto
+            if nuevo_saldo <= 0:
+                cursor.execute("UPDATE prestamos SET estado = 'pagado' WHERE id = %s", (prestamo_id,))
+                flash('¡Préstamo completamente pagado!', 'success')
+            
+            conn.commit()
+            flash('Pago registrado correctamente', 'success')
+            return redirect(url_for('admin_pagos_prestamos'))
+        
+        # Obtener los últimos pagos registrados con información del ahorrador y saldo restante
+        cursor.execute("""
+            SELECT pp.*, p.monto as prestamo_monto, p.usuario_id, u.nombre, u.apellido,
+                   (SELECT SUM(monto) FROM pagos_prestamos WHERE prestamo_id = pp.prestamo_id) as total_pagado
+            FROM pagos_prestamos pp
+            JOIN prestamos p ON pp.prestamo_id = p.id
+            JOIN usuarios u ON p.usuario_id = u.id
+            ORDER BY pp.fecha DESC LIMIT 10
+        """)
+        ultimos_pagos = cursor.fetchall()
+        
+        # Calcular saldo restante para cada pago
+        for pago in ultimos_pagos:
+            pago['saldo_restante'] = round(float(pago['prestamo_monto']) - float(pago['total_pagado']), 2)
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('admin_pagos_prestamos.html', usuarios=usuarios, ultimos_pagos=ultimos_pagos)
+    
+    flash('Error al conectar con la base de datos', 'danger')
+    return redirect(url_for('admin'))
+
+@app.route('/api/prestamos_usuario/<int:usuario_id>')
+@login_required
+@admin_required
+def api_prestamos_usuario(usuario_id):
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener préstamos aprobados del usuario
+        cursor.execute("SELECT * FROM prestamos WHERE usuario_id = %s AND estado = 'aprobado'", (usuario_id,))
+        prestamos = cursor.fetchall()
+        
+        # Para cada préstamo, calcular el saldo pendiente
+        for prestamo in prestamos:
+            # Obtener la suma de pagos realizados para este préstamo
+            cursor.execute("SELECT SUM(monto) as total_pagado FROM pagos_prestamos WHERE prestamo_id = %s", (prestamo['id'],))
+            resultado = cursor.fetchone()
+            total_pagado = resultado['total_pagado'] if resultado['total_pagado'] else 0
+            
+            # Calcular saldo pendiente
+            prestamo['saldo_pendiente'] = round(float(prestamo['monto']) - float(total_pagado), 2)
+        
+        cursor.close()
+        conn.close()
+        
+        # Convertir Decimal a float para serialización JSON
+        for prestamo in prestamos:
+            prestamo['monto'] = float(prestamo['monto'])
+            if prestamo['tasa_interes']:
+                prestamo['tasa_interes'] = float(prestamo['tasa_interes'])
+        
+        return {'prestamos': prestamos}
+    
+    return {'error': 'Error al conectar con la base de datos'}, 500
 
 # Función para crear un usuario administrador inicial si no existe
 def crear_admin_inicial():

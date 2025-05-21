@@ -1,11 +1,12 @@
 # Solución a Problemas en SparFonds
 
-Este documento explica cómo resolver cuatro problemas específicos en la aplicación SparFonds:
+Este documento explica cómo resolver cinco problemas específicos en la aplicación SparFonds:
 
 1. Error de base de datos con el campo `tasa_interes`
 2. Regeneración de certificados SSL
 3. Modificación del proceso de solicitud de préstamos
 4. Filtrado del historial de movimientos por usuario
+5. Implementación de historial de pagos de préstamos con saldo restante
 
 ## 1. Solución al Error de Base de Datos
 
@@ -104,9 +105,49 @@ Se ha modificado la aplicación para que el historial de movimientos muestre sol
    - Haga clic en el botón "Ver Historial de Ahorradores"
    - Seleccione un ahorrador de la lista desplegable para ver su historial
 
+## 5. Implementación de Historial de Pagos de Préstamos
+
+Se ha implementado un sistema para registrar y mostrar el historial de pagos de préstamos, así como el saldo pendiente para cada préstamo.
+
+### Cambios implementados:
+
+1. **Nueva tabla en la base de datos:**
+   - Se ha creado una tabla `pagos_prestamos` para registrar cada pago realizado a un préstamo
+   - La tabla almacena el ID del préstamo, el monto pagado y la fecha del pago
+
+2. **Interfaz para administradores:**
+   - Se ha creado un nuevo módulo en el panel de administración para registrar pagos de préstamos
+   - Los administradores pueden seleccionar un ahorrador, un préstamo específico y registrar el monto del pago
+   - El sistema verifica que el pago no exceda el saldo pendiente
+   - Si el pago completa el préstamo, se actualiza automáticamente su estado a 'pagado'
+
+3. **Visualización para ahorradores:**
+   - En la página de préstamos, los ahorradores pueden ver el saldo pendiente de cada préstamo
+   - Se ha añadido un botón para ver el historial detallado de pagos de cada préstamo
+   - El historial muestra cada pago realizado con su fecha y monto
+
+### Pasos para implementar:
+
+1. Ejecute el script de actualización de la base de datos:
+
+```
+python actualizar_pagos_prestamos.py
+```
+
+Este script realizará las siguientes acciones:
+   - Creará la tabla `pagos_prestamos` si no existe
+   - Añadirá un índice para mejorar el rendimiento de las consultas
+
+2. **Acceso al nuevo módulo para administradores:**
+   - Inicie sesión como administrador
+   - Vaya al Panel de Administración
+   - Haga clic en el botón "Registrar Pagos de Préstamos"
+   - Seleccione un ahorrador y luego un préstamo para registrar el pago
+
 ## Notas Adicionales
 
 - Después de aplicar estas soluciones, reinicie la aplicación con `python app.py`
 - Los certificados SSL son solo para entorno de desarrollo. En producción, debe usar certificados emitidos por una autoridad certificadora confiable.
 - La modificación de la estructura de la tabla `prestamos` no afecta a los datos existentes, solo permite que los nuevos préstamos se creen sin tasa de interés inicial y sin plazo inicial.
 - El filtrado del historial de movimientos mejora la privacidad de los datos de los ahorradores mientras proporciona a los administradores una visión completa de todas las transacciones.
+- El sistema de pagos de préstamos calcula automáticamente el saldo pendiente y actualiza el estado del préstamo cuando se completa el pago total.

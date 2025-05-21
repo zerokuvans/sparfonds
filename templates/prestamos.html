@@ -59,6 +59,8 @@
                                 <th>Tasa Interés</th>
                                 <th>Plazo (meses)</th>
                                 <th>Estado</th>
+                                <th>Saldo Pendiente</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -79,6 +81,20 @@
                                     <span class="badge bg-secondary">Pagado</span>
                                     {% endif %}
                                 </td>
+                                <td>
+                                    {% if prestamo.estado == 'aprobado' %}
+                                    ${{ prestamo.saldo_pendiente }}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if prestamo.estado == 'aprobado' %}
+                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#historialPagosModal{{ prestamo.id }}">
+                                        Ver Historial
+                                    </button>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -88,4 +104,60 @@
         </div>
     </div>
 </div>
+
+<!-- Modales para historial de pagos -->
+{% for prestamo in historial_prestamos %}
+{% if prestamo.estado == 'aprobado' %}
+<div class="modal fade" id="historialPagosModal{{ prestamo.id }}" tabindex="-1" aria-labelledby="historialPagosModalLabel{{ prestamo.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="historialPagosModalLabel{{ prestamo.id }}">Historial de Pagos - Préstamo #{{ prestamo.id }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>Monto original:</strong> ${{ prestamo.monto }}</p>
+                        <p><strong>Tasa de interés:</strong> {{ prestamo.tasa_interes }}%</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Plazo:</strong> {{ prestamo.plazo_meses }} meses</p>
+                        <p><strong>Saldo pendiente:</strong> ${{ prestamo.saldo_pendiente }}</p>
+                    </div>
+                </div>
+                
+                {% if prestamo.pagos|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pago in prestamo.pagos %}
+                            <tr>
+                                <td>{{ pago.fecha }}</td>
+                                <td>${{ pago.monto }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    No hay pagos registrados para este préstamo.
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
 {% endblock %}
