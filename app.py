@@ -8,6 +8,7 @@ from flask import g
 import hashlib
 from functools import wraps
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Cargar variables de entorno desde el archivo .env
 load_dotenv()
