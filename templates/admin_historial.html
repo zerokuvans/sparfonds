@@ -1,0 +1,139 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h2 class="mb-4">Historial de Transacciones por Ahorrador</h2>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Seleccionar Ahorrador</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('admin_historial') }}" class="row g-3">
+                    <div class="col-md-8">
+                        <select name="usuario_id" class="form-select" required>
+                            <option value="">Seleccione un ahorrador...</option>
+                            {% for usuario in usuarios %}
+                                <option value="{{ usuario.id }}" {% if usuario_seleccionado and usuario.id == usuario_seleccionado.id %}selected{% endif %}>
+                                    {{ usuario.nombre }} {{ usuario.apellido }} ({{ usuario.email }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary">Ver Historial</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if usuario_seleccionado %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Historial de {{ usuario_seleccionado.nombre }} {{ usuario_seleccionado.apellido }}</h5>
+                <div>
+                    <select class="form-select form-select-sm" id="filter-transactions">
+                        <option value="all">Todos los movimientos</option>
+                        <option value="ahorro">Solo ahorros</option>
+                        <option value="prestamo">Solo préstamos</option>
+                        <option value="pago">Solo pagos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="transaction-list">
+                    {% if transacciones %}
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Descripción</th>
+                                <th>Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaccion in transacciones %}
+                            <tr class="transaction-item" data-type="{{ transaccion.tipo }}">
+                                <td class="transaction-date">{{ transaccion.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>
+                                    {% if transaccion.tipo == 'ahorro' %}
+                                    <span class="badge bg-success">Ahorro</span>
+                                    {% elif transaccion.tipo == 'prestamo' %}
+                                    <span class="badge bg-info">Préstamo</span>
+                                    {% elif transaccion.tipo == 'pago' %}
+                                    <span class="badge bg-warning">Pago</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ transaccion.descripcion }}</td>
+                                <td class="transaction-amount {{ 'positive' if transaccion.tipo == 'ahorro' else 'negative' if transaccion.tipo == 'prestamo' else '' }} currency">
+                                    {{ transaccion.monto }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="alert alert-info">
+                        No hay transacciones registradas para este ahorrador.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Resumen de Ahorros</h5>
+            </div>
+            <div class="card-body">
+                <h3 class="currency">{{ total_ahorros }}</h3>
+                <p>Total acumulado hasta la fecha</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Resumen de Préstamos</h5>
+            </div>
+            <div class="card-body">
+                <h3 class="currency">{{ total_prestamos }}</h3>
+                <p>Total de préstamos activos</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const filterSelect = document.getElementById('filter-transactions');
+        if (filterSelect) {
+            const transactionItems = document.querySelectorAll('.transaction-item');
+            
+            filterSelect.addEventListener('change', function() {
+                const filterValue = this.value;
+                
+                transactionItems.forEach(item => {
+                    if (filterValue === 'all' || item.dataset.type === filterValue) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}

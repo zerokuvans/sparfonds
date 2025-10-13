@@ -1,0 +1,187 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Solicitar Préstamo</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('prestamos') }}">
+                    <div class="mb-3">
+                        <label for="monto" class="form-label">Monto del préstamo</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" step="0.01" min="0" class="form-control" id="monto" name="monto" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Solicitar Préstamo</button>
+                </form>
+                <div class="alert alert-info mt-3">
+                    <small>Nota: Las solicitudes de préstamos quedarán pendientes hasta que sean aprobadas por un administrador. La tasa de interés y el plazo serán establecidos por el administrador al momento de la aprobación.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Información de Préstamos</h4>
+            </div>
+            <div class="card-body">
+                <p>Nuestros préstamos ofrecen:</p>
+                <ul>
+                    <li>Tasas de interés competitivas</li>
+                    <li>Plazos flexibles de pago</li>
+                    <li>Sin comisiones por apertura</li>
+                    <li>Posibilidad de pago anticipado sin penalización</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Mis Préstamos</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Fecha Solicitud</th>
+                                <th>Monto</th>
+                                <th>Tasa Interés</th>
+                                <th>Plazo (meses)</th>
+                                <th>Estado</th>
+                                <th>Saldo Pendiente</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prestamo in historial_prestamos %}
+                            <tr>
+                                <td>{{ prestamo.fecha_solicitud }}</td>
+                                <td>${{ prestamo.monto }}</td>
+                                <td>
+                                    {% if prestamo.estado == 'pendiente' and (prestamo.tasa_interes == 0 or prestamo.tasa_interes == 0.0) %}
+                                        <span class="text-muted">Por definir</span>
+                                    {% else %}
+                                        {{ prestamo.tasa_interes }}%
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if prestamo.estado == 'pendiente' and prestamo.plazo_meses == 0 %}
+                                        <span class="text-muted">Por definir</span>
+                                    {% else %}
+                                        {{ prestamo.plazo_meses }} meses
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if prestamo.estado == 'pendiente' %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                    {% elif prestamo.estado == 'aprobado' %}
+                                    <span class="badge bg-success">Aprobado</span>
+                                    {% elif prestamo.estado == 'rechazado' %}
+                                    <span class="badge bg-danger">Rechazado</span>
+                                    {% elif prestamo.estado == 'pagado' %}
+                                    <span class="badge bg-secondary">Pagado</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if prestamo.estado == 'aprobado' %}
+                                    ${{ prestamo.saldo_pendiente }}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if prestamo.estado == 'aprobado' %}
+                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#historialPagosModal{{ prestamo.id }}">
+                                        Ver Historial
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modales para historial de pagos -->
+{% for prestamo in historial_prestamos %}
+{% if prestamo.estado == 'aprobado' %}
+<div class="modal fade" id="historialPagosModal{{ prestamo.id }}" tabindex="-1" aria-labelledby="historialPagosModalLabel{{ prestamo.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="historialPagosModalLabel{{ prestamo.id }}">Historial de Pagos - Préstamo #{{ prestamo.id }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>Monto original:</strong> ${{ prestamo.monto }}</p>
+                        <p><strong>Tasa de interés:</strong> 
+                            {% if prestamo.estado == 'pendiente' and (prestamo.tasa_interes == 0 or prestamo.tasa_interes == 0.0) %}
+                                <span class="text-muted">Por definir</span>
+                            {% else %}
+                                {{ prestamo.tasa_interes }}%
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Plazo:</strong> 
+                            {% if prestamo.estado == 'pendiente' and prestamo.plazo_meses == 0 %}
+                                <span class="text-muted">Por definir</span>
+                            {% else %}
+                                {{ prestamo.plazo_meses }} meses
+                            {% endif %}
+                        </p>
+                        <p><strong>Saldo pendiente:</strong> ${{ prestamo.saldo_pendiente }}</p>
+                    </div>
+                </div>
+                
+                {% if prestamo.pagos|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pago in prestamo.pagos %}
+                            <tr>
+                                <td>{{ pago.fecha }}</td>
+                                <td>${{ pago.monto }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    No hay pagos registrados para este préstamo.
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}

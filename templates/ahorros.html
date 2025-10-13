@@ -1,0 +1,54 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Resumen de Ahorros</h4>
+            </div>
+            <div class="card-body">
+                <h5>Total ahorrado: ${{ total_ahorros }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Historial de Ahorros</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ahorro in historial_ahorros %}
+                            <tr>
+                                <td>{{ ahorro.fecha }}</td>
+                                <td>${{ ahorro.monto }}</td>
+                                <td>
+                                    {% if ahorro.estado == 'Validado' %}
+                                    <span class="badge bg-success">{{ ahorro.estado }}</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">{{ ahorro.estado }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

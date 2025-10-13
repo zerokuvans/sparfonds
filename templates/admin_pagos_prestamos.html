@@ -1,0 +1,126 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Registrar Pago de Préstamo</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin_pagos_prestamos') }}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="usuario_id" class="form-label">Seleccionar Ahorrador</label>
+                            <select class="form-select" id="usuario_id" name="usuario_id" required>
+                                <option value="">Seleccione un ahorrador</option>
+                                {% for usuario in usuarios %}
+                                {% if usuario.rol == 'ahorrador' %}
+                                <option value="{{ usuario.id }}">{{ usuario.nombre }} {{ usuario.apellido }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="prestamo_id" class="form-label">Seleccionar Préstamo</label>
+                            <select class="form-select" id="prestamo_id" name="prestamo_id" required disabled>
+                                <option value="">Primero seleccione un ahorrador</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="monto" class="form-label">Monto del Pago</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="0.01" min="0" class="form-control" id="monto" name="monto" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="fecha" class="form-label">Fecha del Pago</label>
+                            <input type="datetime-local" class="form-control" id="fecha" name="fecha" value="{{ now.strftime('%Y-%m-%dT%H:%M') }}" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Registrar Pago</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Últimos Pagos Registrados</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Ahorrador</th>
+                                <th>ID Préstamo</th>
+                                <th>Monto Pagado</th>
+                                <th>Saldo Restante</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pago in ultimos_pagos %}
+                            <tr>
+                                <td>{{ pago.fecha }}</td>
+                                <td>{{ pago.nombre }} {{ pago.apellido }}</td>
+                                <td>{{ pago.prestamo_id }}</td>
+                                <td>${{ pago.monto }}</td>
+                                <td>${{ pago.saldo_restante }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Script para cargar los préstamos del usuario seleccionado
+    document.getElementById('usuario_id').addEventListener('change', function() {
+        const usuarioId = this.value;
+        const prestamoSelect = document.getElementById('prestamo_id');
+        
+        // Limpiar opciones actuales
+        prestamoSelect.innerHTML = '<option value="">Cargando préstamos...</option>';
+        prestamoSelect.disabled = true;
+        
+        if (usuarioId) {
+            // Hacer petición AJAX para obtener préstamos del usuario
+            fetch(`/api/prestamos_usuario/${usuarioId}`)
+                .then(response => response.json())
+                .then(data => {
+                    prestamoSelect.innerHTML = '';
+                    
+                    if (data.prestamos.length === 0) {
+                        prestamoSelect.innerHTML = '<option value="">No hay préstamos aprobados</option>';
+                    } else {
+                        prestamoSelect.innerHTML = '<option value="">Seleccione un préstamo</option>';
+                        data.prestamos.forEach(prestamo => {
+                            const option = document.createElement('option');
+                            option.value = prestamo.id;
+                            option.textContent = `Préstamo #${prestamo.id} - $${prestamo.monto} (Saldo: $${prestamo.saldo_pendiente})`;
+                            prestamoSelect.appendChild(option);
+                        });
+                        prestamoSelect.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    prestamoSelect.innerHTML = '<option value="">Error al cargar préstamos</option>';
+                });
+        } else {
+            prestamoSelect.innerHTML = '<option value="">Primero seleccione un ahorrador</option>';
+        }
+    });
+</script>
+{% endblock %}

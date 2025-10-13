@@ -1,0 +1,84 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Registrar Ahorro para Ahorrador</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin_ahorros') }}">
+                    <div class="mb-3">
+                        <label for="usuario_id" class="form-label">Seleccionar Ahorrador</label>
+                        <select class="form-select" id="usuario_id" name="usuario_id" required>
+                            <option value="" selected disabled>Seleccione un ahorrador</option>
+                            {% for usuario in usuarios %}
+                                {% if usuario.rol == 'ahorrador' %}
+                                    <option value="{{ usuario.id }}">{{ usuario.nombre }} {{ usuario.apellido }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="monto" class="form-label">Monto a ahorrar</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" step="0.01" min="0" class="form-control" id="monto" name="monto" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fecha" class="form-label">Fecha del ahorro</label>
+                        <input type="date" class="form-control" id="fecha" name="fecha" value="{{ now.strftime('%Y-%m-%d') }}" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="validado" name="validado" value="1" checked>
+                        <label class="form-check-label" for="validado">Validar automáticamente</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Registrar Ahorro</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Últimos Ahorros Registrados</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Ahorrador</th>
+                                <th>Monto</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ahorro in ultimos_ahorros %}
+                            <tr>
+                                <td>{{ ahorro.nombre }} {{ ahorro.apellido }}</td>
+                                <td>${{ ahorro.monto }}</td>
+                                <td>{{ ahorro.fecha }}</td>
+                                <td>
+                                    {% if ahorro.validado == 1 %}
+                                    <span class="badge bg-success">Validado</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
