@@ -33,6 +33,11 @@ def configurar_seguridad_produccion(app):
     app.config['SESSION_COOKIE_SECURE'] = True
     app.config['REMEMBER_COOKIE_SECURE'] = True
     app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    
+    # Configuración adicional para sesiones en producción
+    app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hora
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = True
     
     # Configurar cabeceras de seguridad
     @app.after_request
@@ -41,6 +46,22 @@ def configurar_seguridad_produccion(app):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-XSS-Protection'] = '1; mode=block'
+        
+        # Asegurar que las cookies de sesión se configuren correctamente
+        if 'Set-Cookie' in response.headers:
+            cookies = response.headers.getlist('Set-Cookie')
+            for i, cookie in enumerate(cookies):
+                if 'sparfonds_session=' in cookie:
+                    # Asegurar que la cookie de sesión tenga los atributos correctos
+                    if 'Secure' not in cookie and app.config.get('SESSION_COOKIE_SECURE'):
+                        cookie += '; Secure'
+                    if 'HttpOnly' not in cookie:
+                        cookie += '; HttpOnly'
+                    if 'SameSite' not in cookie:
+                        cookie += '; SameSite=Lax'
+                    cookies[i] = cookie
+            response.headers['Set-Cookie'] = cookies
+        
         return response
     
     return app

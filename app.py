@@ -13,16 +13,45 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
 
-# Configuración para redirigir HTTP a HTTPS
-app.config['PREFERRED_URL_SCHEME'] = 'https'
+# Configuración de secret key estable para sesiones
+# Usar variable de entorno o generar una fija para desarrollo
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    # Para desarrollo, usar una clave fija
+    SECRET_KEY = 'sparfonds-dev-key-2024-change-in-production'
+    
+app.secret_key = SECRET_KEY
+
+# Configuración de sesiones para producción
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hora
+app.config['SESSION_COOKIE_NAME'] = 'sparfonds_session'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Función para detectar si estamos en producción
+def is_production_environment():
+    return (
+        os.environ.get('FLASK_ENV') == 'production' or 
+        os.environ.get('HTTPS') == 'on' or
+        os.environ.get('FORCE_HTTPS') == 'true'
+    )
+
+is_production = is_production_environment()
+
+# Configuración para HTTPS en producción
+if is_production or os.environ.get('FORCE_HTTPS') == 'true':
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+else:
+    app.config['SESSION_COOKIE_SECURE'] = False
+    app.config['PREFERRED_URL_SCHEME'] = 'http'
 
 # Importar configuración SSL
 from ssl_config import certificados_ssl_existen, obtener_rutas_certificados, configurar_seguridad_produccion, crear_contexto_ssl
 
 # Configurar seguridad en producción
-if os.environ.get('FLASK_ENV') == 'production':
+if is_production:
     app = configurar_seguridad_produccion(app)
 
 # Context processor para proporcionar variables a todas las plantillas
@@ -125,9 +154,16 @@ def index():
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Verificar si la sesión existe y es válida
         if 'user_id' not in session:
+            # Log para debugging
+            print(f"Sesión no encontrada. Redirigiendo a login desde: {request.endpoint}")
             flash('Por favor inicia sesión para acceder a esta página', 'warning')
             return redirect(url_for('login'))
+        
+        # Renovar la sesión en cada request para mantenerla activa
+        session.permanent = True
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -203,9 +239,15 @@ def login():
             conn.close()
             
             if usuario:
+                # Configurar sesión permanente para persistencia
+                session.permanent = True
                 session['user_id'] = usuario['id']
                 session['nombre'] = usuario['nombre']
                 session['rol'] = usuario['rol']
+                
+                # Log para debugging en producción
+                print(f"Usuario {usuario['email']} logueado exitosamente. Session ID: {session.get('user_id')}")
+                
                 return redirect(url_for('dashboard'))
             else:
                 flash('Credenciales incorrectas', 'danger')
