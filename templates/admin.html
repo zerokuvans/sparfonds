@@ -99,7 +99,7 @@
                                     <form action="{{ url_for('validar_prestamo', prestamo_id=prestamo.id, accion='aprobar') }}" method="POST" class="d-inline">
                                         <div class="input-group input-group-sm mb-2">
                                             <span class="input-group-text">Tasa %</span>
-                                            <input type="number" step="0.01" min="1" max="30" class="form-control" name="tasa_interes" required>
+                                            <input type="number" step="0.01" min="1" max="100" class="form-control" name="tasa_interes" required>
                                         </div>
                                         <div class="input-group input-group-sm mb-2">
                                             <span class="input-group-text">Plazo</span>

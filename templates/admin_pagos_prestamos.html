@@ -8,6 +8,17 @@
                 <h4 class="mb-0">Registrar Pago de Préstamo</h4>
             </div>
             <div class="card-body">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle"></i> Sistema de Interés Simple Anualizado</h6>
+                    <p class="mb-1">Los préstamos ahora utilizan <strong>interés simple</strong>:</p>
+                    <ul class="mb-1">
+                        <li>El interés se calcula sobre el monto inicial del préstamo</li>
+                        <li>La cuota sugerida incluye capital + interés mensual fijo</li>
+                        <li>El saldo pendiente incluye el total de intereses a pagar</li>
+                    </ul>
+                    <small class="text-muted">Los préstamos anteriores mantienen su sistema original.</small>
+                </div>
+                
                 <form method="POST" action="{{ url_for('admin_pagos_prestamos') }}">
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -64,21 +75,135 @@
                                 <th>ID Préstamo</th>
                                 <th>Monto Pagado</th>
                                 <th>Saldo Restante</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for pago in ultimos_pagos %}
-                            <tr>
+                            <tr class="clickable-row" data-prestamo-id="{{ pago.prestamo_id }}" style="cursor: pointer;">
                                 <td>{{ pago.fecha }}</td>
                                 <td>{{ pago.nombre }} {{ pago.apellido }}</td>
                                 <td>{{ pago.prestamo_id }}</td>
                                 <td>${{ pago.monto }}</td>
                                 <td>${{ pago.saldo_restante }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="mostrarPronostico(event, {{ pago.prestamo_id }})">
+                                        <i class="fas fa-chart-line"></i> Ver Pronóstico
+                                    </button>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para pronóstico de préstamo -->
+<div class="modal fade" id="pronosticoPrestamoModal" tabindex="-1" aria-labelledby="pronosticoPrestamoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pronosticoPrestamoModalLabel">Pronóstico de Pagos del Préstamo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="loadingSpinnerPronostico" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+                <div id="pronosticoContent" style="display: none;">
+                    <!-- Resumen del préstamo -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">Monto del Préstamo</h6>
+                                    <h4 class="text-primary" id="resumenMonto"></h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">Tasa de Interés</h6>
+                                    <h4 class="text-info" id="resumenTasa"></h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">Plazo (meses)</h6>
+                                    <h4 class="text-warning" id="resumenPlazo"></h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">Cuota Mensual</h6>
+                                    <h4 class="text-success" id="resumenCuota"></h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de amortización -->
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h6>Tabla de Amortización</h6>
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-striped">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Mes</th>
+                                            <th>Cuota Total</th>
+                                            <th>Capital</th>
+                                            <th>Interés</th>
+                                            <th>Saldo Pendiente</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tablaAmortizacion">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resumen final -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="row text-center">
+                                        <div class="col-md-4">
+                                            <h6>Total Pagado</h6>
+                                            <h4 id="totalPagado"></h4>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <h6>Total de Intereses</h6>
+                                            <h4 id="totalIntereses"></h4>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <h6>Fecha de Finalización</h6>
+                                            <h4 id="fechaFinalizacion"></h4>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="imprimirPronostico()">
+                    <i class="fas fa-print"></i> Imprimir
+                </button>
             </div>
         </div>
     </div>
@@ -108,7 +233,14 @@
                         data.prestamos.forEach(prestamo => {
                             const option = document.createElement('option');
                             option.value = prestamo.id;
-                            option.textContent = `Préstamo #${prestamo.id} - $${prestamo.monto} (Saldo: $${prestamo.saldo_pendiente})`;
+                            
+                            // Mostrar información adicional para préstamos con nuevo sistema
+                            let texto = `Préstamo #${prestamo.id} - $${prestamo.monto} (Saldo: $${prestamo.saldo_pendiente})`;
+                            if (prestamo.cuota_sugerida) {
+                                texto += ` - Cuota sugerida: $${prestamo.cuota_sugerida}`;
+                            }
+                            
+                            option.textContent = texto;
                             prestamoSelect.appendChild(option);
                         });
                         prestamoSelect.disabled = false;
@@ -122,5 +254,80 @@
             prestamoSelect.innerHTML = '<option value="">Primero seleccione un ahorrador</option>';
         }
     });
+
+    // Función para mostrar el pronóstico del préstamo
+    async function mostrarPronostico(event, prestamoId) {
+        event.stopPropagation(); // Evitar que se active el click de la fila
+        
+        const modal = new bootstrap.Modal(document.getElementById('pronosticoPrestamoModal'));
+        const loadingSpinner = document.getElementById('loadingSpinnerPronostico');
+        const pronosticoContent = document.getElementById('pronosticoContent');
+
+        // Mostrar loading y ocultar contenido
+        loadingSpinner.style.display = 'block';
+        pronosticoContent.style.display = 'none';
+
+        modal.show();
+
+        try {
+            const response = await fetch(`/api/admin/prestamo/${prestamoId}/pronostico`);
+            const data = await response.json();
+
+            if (response.ok) {
+                // Llenar el resumen
+                document.getElementById('resumenMonto').textContent = `$${data.monto_prestamo.toFixed(2)}`;
+                document.getElementById('resumenTasa').textContent = `${data.tasa_interes}% anual`;
+                document.getElementById('resumenPlazo').textContent = `${data.plazo_meses} meses`;
+                document.getElementById('resumenCuota').textContent = `$${data.cuota_mensual.toFixed(2)}`;
+
+                // Llenar la tabla de amortización
+                const tbody = document.getElementById('tablaAmortizacion');
+                tbody.innerHTML = '';
+                
+                data.tabla_amortizacion.forEach(fila => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${fila.mes}</td>
+                        <td>$${fila.cuota_total.toFixed(2)}</td>
+                        <td>$${fila.capital.toFixed(2)}</td>
+                        <td>$${fila.interes.toFixed(2)}</td>
+                        <td>$${fila.saldo_pendiente.toFixed(2)}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // Llenar el resumen final
+                document.getElementById('totalPagado').textContent = `$${data.total_pagado.toFixed(2)}`;
+                document.getElementById('totalIntereses').textContent = `$${data.total_intereses.toFixed(2)}`;
+                document.getElementById('fechaFinalizacion').textContent = new Date(data.fecha_finalizacion).toLocaleDateString('es-ES');
+
+                // Mostrar contenido y ocultar loading
+                loadingSpinner.style.display = 'none';
+                pronosticoContent.style.display = 'block';
+            } else {
+                alert('Error: ' + data.error);
+                modal.hide();
+            }
+        } catch (error) {
+            console.error('Error al cargar el pronóstico:', error);
+            alert('Error al cargar el pronóstico del préstamo');
+            modal.hide();
+        }
+    }
+
+    // Función para imprimir el pronóstico
+    function imprimirPronostico() {
+        const contenido = document.getElementById('pronosticoContent').innerHTML;
+        const ventana = window.open('', '', 'height=600,width=800');
+        ventana.document.write('<html><head><title>Pronóstico de Préstamo</title>');
+        ventana.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">');
+        ventana.document.write('</head><body>');
+        ventana.document.write('<div class="container mt-4">');
+        ventana.document.write('<h2 class="mb-4">Pronóstico de Pagos del Préstamo</h2>');
+        ventana.document.write(contenido);
+        ventana.document.write('</div></body></html>');
+        ventana.document.close();
+        ventana.print();
+    }
 </script>
 {% endblock %}

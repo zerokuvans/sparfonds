@@ -16,18 +16,43 @@ document.addEventListener('DOMContentLoaded', function() {
         calculateBtn.addEventListener('click', function() {
             // Obtener valores
             const principal = parseFloat(loanAmount.value);
-            const rate = parseFloat(interestRate.value) / 100 / 12; // Tasa mensual
+            const annualRate = parseFloat(interestRate.value) / 100; // Tasa anual
             const time = parseInt(loanTerm.value); // Meses
             
-            // Calcular pago mensual
-            const x = Math.pow(1 + rate, time);
-            const monthly = (principal * x * rate) / (x - 1);
+            // NUEVO SISTEMA: Interés Simple Anualizado
+            // Calcular interés mensual fijo: (monto * tasa_anual) / 12
+            const monthlyInterest = (principal * annualRate) / 12;
             
-            if (isFinite(monthly)) {
+            // Calcular cuota de capital mensual: monto / plazo
+            const monthlyCapital = principal / time;
+            
+            // Cuota total mensual: capital + interés fijo
+            const monthly = monthlyCapital + monthlyInterest;
+            
+            // Total de intereses: interés mensual * plazo
+            const totalInterestAmount = monthlyInterest * time;
+            
+            // Total a pagar: monto + total intereses
+            const totalPaymentAmount = principal + totalInterestAmount;
+            
+            if (isFinite(monthly) && monthly > 0) {
                 // Mostrar resultados
                 monthlyPayment.innerHTML = monthly.toFixed(2);
-                totalPayment.innerHTML = (monthly * time).toFixed(2);
-                totalInterest.innerHTML = ((monthly * time) - principal).toFixed(2);
+                totalPayment.innerHTML = totalPaymentAmount.toFixed(2);
+                totalInterest.innerHTML = totalInterestAmount.toFixed(2);
+                
+                // Agregar información adicional del nuevo sistema
+                const additionalInfo = document.getElementById('additional-info');
+                if (additionalInfo) {
+                    additionalInfo.innerHTML = `
+                        <div class="alert alert-info mt-3">
+                            <h6><i class="fas fa-info-circle"></i> Sistema de Interés Simple Anualizado</h6>
+                            <p class="mb-1"><strong>Cuota de capital mensual:</strong> $${monthlyCapital.toFixed(2)}</p>
+                            <p class="mb-1"><strong>Interés mensual fijo:</strong> $${monthlyInterest.toFixed(2)}</p>
+                            <p class="mb-0"><small class="text-muted">El interés se mantiene constante durante todo el plazo, calculado sobre el monto inicial.</small></p>
+                        </div>
+                    `;
+                }
                 
                 // Mostrar resultados
                 resultDiv.classList.add('show');

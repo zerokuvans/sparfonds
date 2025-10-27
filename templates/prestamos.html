@@ -54,12 +54,13 @@
                     <table class="table table-striped">
                         <thead>
                             <tr>
-                                <th>Fecha Solicitud</th>
+                                <th>Fecha</th>
                                 <th>Monto</th>
-                                <th>Tasa Interés</th>
+                                <th>Tasa de Interés</th>
                                 <th>Plazo (meses)</th>
                                 <th>Estado</th>
                                 <th>Saldo Pendiente</th>
+                                <th>Cuota Mensual</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -101,6 +102,20 @@
                                     {% endif %}
                                 </td>
                                 <td>
+                                    {% if prestamo.estado == 'aprobado' and prestamo.cuota_total_mensual %}
+                                    <div class="text-success">
+                                        <strong>${{ "%.2f"|format(prestamo.cuota_total_mensual) }}</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            Capital: ${{ "%.2f"|format(prestamo.cuota_capital_mensual) }}<br>
+                                            Interés: ${{ "%.2f"|format(prestamo.interes_mensual_fijo) }}
+                                        </small>
+                                    </div>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>
                                     {% if prestamo.estado == 'aprobado' %}
                                     <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#historialPagosModal{{ prestamo.id }}">
                                         Ver Historial
@@ -135,9 +150,15 @@
                             {% if prestamo.estado == 'pendiente' and (prestamo.tasa_interes == 0 or prestamo.tasa_interes == 0.0) %}
                                 <span class="text-muted">Por definir</span>
                             {% else %}
-                                {{ prestamo.tasa_interes }}%
+                                {{ prestamo.tasa_interes }}% anual
                             {% endif %}
                         </p>
+                        {% if prestamo.cuota_total_mensual %}
+                        <p><strong>Cuota mensual:</strong> 
+                            <span class="text-success">${{ "%.2f"|format(prestamo.cuota_total_mensual) }}</span>
+                            <br><small class="text-muted">Capital: ${{ "%.2f"|format(prestamo.cuota_capital_mensual) }} + Interés: ${{ "%.2f"|format(prestamo.interes_mensual_fijo) }}</small>
+                        </p>
+                        {% endif %}
                     </div>
                     <div class="col-md-6">
                         <p><strong>Plazo:</strong> 
@@ -148,8 +169,19 @@
                             {% endif %}
                         </p>
                         <p><strong>Saldo pendiente:</strong> ${{ prestamo.saldo_pendiente }}</p>
+                        {% if prestamo.total_a_pagar %}
+                        <p><strong>Total a pagar:</strong> ${{ "%.2f"|format(prestamo.total_a_pagar) }}</p>
+                        <p><strong>Total intereses:</strong> ${{ "%.2f"|format(prestamo.total_intereses) }}</p>
+                        {% endif %}
                     </div>
                 </div>
+                
+                {% if prestamo.cuota_total_mensual %}
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle"></i> Sistema de Interés Simple Anualizado</h6>
+                    <p class="mb-0">Este préstamo usa interés simple: el interés mensual de ${{ "%.2f"|format(prestamo.interes_mensual_fijo) }} se mantiene fijo durante todo el plazo, calculado sobre el monto inicial.</p>
+                </div>
+                {% endif %}
                 
                 {% if prestamo.pagos|length > 0 %}
                 <div class="table-responsive">

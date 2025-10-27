@@ -8,25 +8,82 @@
                 <h4 class="mb-0">Registro de Usuario</h4>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('registro') }}">
+                <form method="POST" action="{{ url_for('registro') }}" class="needs-validation" novalidate>
                     <div class="mb-3">
                         <label for="nombre" class="form-label">Nombre</label>
                         <input type="text" class="form-control" id="nombre" name="nombre" required>
+                        <div class="invalid-feedback">Por favor ingrese su nombre</div>
                     </div>
                     <div class="mb-3">
                         <label for="apellido" class="form-label">Apellido</label>
                         <input type="text" class="form-control" id="apellido" name="apellido" required>
+                        <div class="invalid-feedback">Por favor ingrese su apellido</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cedula" class="form-label">Cédula</label>
+                        <input type="text" class="form-control" id="cedula" name="cedula" required onkeypress="return event.charCode >= 48 && event.charCode <= 57">
+                        <div class="invalid-feedback">Por favor ingrese su cédula (solo números)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento</label>
+                        <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" required>
+                        <div class="invalid-feedback">Por favor ingrese su fecha de nacimiento</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="direccion" class="form-label">Dirección</label>
+                        <input type="text" class="form-control" id="direccion" name="direccion" required>
+                        <div class="invalid-feedback">Por favor ingrese su dirección</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="telefono" class="form-label">Teléfono</label>
+                        <input type="text" class="form-control" id="telefono" name="telefono" required onkeypress="return event.charCode >= 48 && event.charCode <= 57">
+                        <div class="invalid-feedback">Por favor ingrese su teléfono (solo números)</div>
                     </div>
                     <div class="mb-3">
                         <label for="email" class="form-label">Correo Electrónico</label>
                         <input type="email" class="form-control" id="email" name="email" required>
+                        <div class="invalid-feedback">Por favor ingrese un correo electrónico válido</div>
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Contraseña</label>
                         <input type="password" class="form-control" id="password" name="password" required>
+                        <div class="invalid-feedback">Por favor ingrese una contraseña</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirmar Contraseña</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                        <div class="invalid-feedback">Por favor confirme su contraseña</div>
                     </div>
                     <button type="submit" class="btn btn-primary">Registrarse</button>
                 </form>
+                
+                <script>
+                // Validación del formulario
+                (function () {
+                    'use strict'
+                    var forms = document.querySelectorAll('.needs-validation')
+                    Array.prototype.slice.call(forms)
+                        .forEach(function (form) {
+                            form.addEventListener('submit', function (event) {
+                                if (!form.checkValidity()) {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                }
+                                // Validar que las contraseñas coincidan
+                                var password = document.getElementById('password')
+                                var confirm_password = document.getElementById('confirm_password')
+                                if (password.value !== confirm_password.value) {
+                                    confirm_password.setCustomValidity('Las contraseñas no coinciden')
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                } else {
+                                    confirm_password.setCustomValidity('')
+                                }
+                                form.classList.add('was-validated')
+                            }, false)
+                        })
+                })()
+                </script>
                 <div class="mt-3">
                     <p>¿Ya tienes una cuenta? <a href="{{ url_for('login') }}">Inicia sesión aquí</a></p>
                 </div>
@@ -34,4 +91,55 @@
         </div>
     </div>
 </div>
+
+<script>
+// Validación del formulario
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const cedula = document.getElementById('cedula');
+    const telefono = document.getElementById('telefono');
+
+    form.addEventListener('submit', function(event) {
+        let isValid = true;
+
+        // Validar cédula (solo números)
+        if (!/^\d+$/.test(cedula.value)) {
+            cedula.setCustomValidity('Por favor ingresa solo números');
+            isValid = false;
+        } else {
+            cedula.setCustomValidity('');
+        }
+
+        // Validar teléfono (solo números)
+        if (!/^\d+$/.test(telefono.value)) {
+            telefono.setCustomValidity('Por favor ingresa solo números');
+            isValid = false;
+        } else {
+            telefono.setCustomValidity('');
+        }
+
+        if (!isValid) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    });
+
+    // Limpiar validación al escribir
+    cedula.addEventListener('input', function() {
+        if (/^\d+$/.test(this.value)) {
+            this.setCustomValidity('');
+        } else {
+            this.setCustomValidity('Por favor ingresa solo números');
+        }
+    });
+
+    telefono.addEventListener('input', function() {
+        if (/^\d+$/.test(this.value)) {
+            this.setCustomValidity('');
+        } else {
+            this.setCustomValidity('Por favor ingresa solo números');
+        }
+    });
+});
+</script>
 {% endblock %}

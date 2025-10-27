@@ -26,6 +26,32 @@
                         </div>
                     </div>
                     <div class="mb-3">
+                        <label for="cedula" class="form-label">Cédula</label>
+                        <input type="text" class="form-control" id="cedula" name="cedula" value="{{ usuario.cedula }}" readonly>
+                        <small class="text-muted">La cédula no puede ser modificada después del registro inicial.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento</label>
+                        <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" value="{{ usuario.fecha_nacimiento.strftime('%Y-%m-%d') if usuario.fecha_nacimiento else '' }}" required>
+                        <div class="invalid-feedback">
+                            Por favor selecciona tu fecha de nacimiento.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="direccion" class="form-label">Dirección</label>
+                        <input type="text" class="form-control" id="direccion" name="direccion" value="{{ usuario.direccion }}" required>
+                        <div class="invalid-feedback">
+                            Por favor ingresa tu dirección.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="telefono" class="form-label">Teléfono</label>
+                        <input type="text" class="form-control" id="telefono" name="telefono" value="{{ usuario.telefono }}" required pattern="[0-9]+" maxlength="20">
+                        <div class="invalid-feedback">
+                            Por favor ingresa un número de teléfono válido (solo números).
+                        </div>
+                    </div>
+                    <div class="mb-3">
                         <label for="email" class="form-label">Correo Electrónico</label>
                         <input type="email" class="form-control" id="email" name="email" value="{{ usuario.email }}" required>
                         <div class="invalid-feedback">
@@ -83,11 +109,14 @@
                 <div class="row">
                     <div class="col-md-4 text-center">
                         <h5>Ahorros Totales</h5>
-                        <h3 class="currency">{{ total_ahorros }}</h3>
+                        <h3 class="text-success">${{ "%.2f"|format(total_ahorros) }}</h3>
                     </div>
                     <div class="col-md-4 text-center">
                         <h5>Préstamos Activos</h5>
-                        <h3>{{ num_prestamos }}</h3>
+                        <h3 class="text-primary">{{ num_prestamos }}</h3>
+                        {% if total_prestamos > 0 %}
+                        <p class="text-muted">Total: ${{ "%.2f"|format(total_prestamos) }}</p>
+                        {% endif %}
                     </div>
                     <div class="col-md-4 text-center">
                         <h5>Miembro desde</h5>

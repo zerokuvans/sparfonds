@@ -1,6 +1,6 @@
-{% extends 'layout.html' %}
+{% extends 'layout.html' %n}
 
-{% block content %}
+{% block content %n}
 <div class="row">
     <div class="col-md-12 mb-4">
         <div class="card">
@@ -61,7 +61,7 @@
                         </thead>
                         <tbody>
                             {% for ahorro in ultimos_ahorros %}
-                            <tr>
+                            <tr class="clickable-row" data-ahorro-id="{{ ahorro.id }}" style="cursor: pointer;">
                                 <td>{{ ahorro.nombre }} {{ ahorro.apellido }}</td>
                                 <td>${{ ahorro.monto }}</td>
                                 <td>{{ ahorro.fecha }}</td>
@@ -81,4 +81,186 @@
         </div>
     </div>
 </div>
+
+<!-- Modal para detalles de ahorro -->
+<div class="modal fade" id="detalleAhorroModal" tabindex="-1" aria-labelledby="detalleAhorroModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalleAhorroModalLabel">Detalles del Ahorro</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="loadingSpinner" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+                <div id="detalleAhorroContent" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Información del Ahorro</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <th>Monto:</th>
+                                    <td id="ahorroMonto"></td>
+                                </tr>
+                                <tr>
+                                    <th>Fecha:</th>
+                                    <td id="ahorroFecha"></td>
+                                </tr>
+                                <tr>
+                                    <th>Estado:</th>
+                                    <td id="ahorroEstado"></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Información del Usuario</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <th>Nombre:</th>
+                                    <td id="usuarioNombre"></td>
+                                </tr>
+                                <tr>
+                                    <th>Email:</th>
+                                    <td id="usuarioEmail"></td>
+                                </tr>
+                                <tr>
+                                    <th>Fecha de Registro:</th>
+                                    <td id="usuarioFechaRegistro"></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h6>Resumen de Ahorros del Usuario</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <th>Total de Ahorros:</th>
+                                    <td id="totalAhorrosUsuario"></td>
+                                </tr>
+                                <tr>
+                                    <th>Cantidad de Ahorros:</th>
+                                    <td id="cantidadAhorrosUsuario"></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-warning" id="btnInvalidarAhorro" style="display: none;">
+                    <i class="fas fa-times"></i> Invalidar Ahorro
+                </button>
+                <button type="button" class="btn btn-success" id="btnValidarAhorro" style="display: none;">
+                    <i class="fas fa-check"></i> Validar Ahorro
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Hacer las filas clickeables
+    document.querySelectorAll('.clickable-row').forEach(row => {
+        row.addEventListener('click', function() {
+            const ahorroId = this.getAttribute('data-ahorro-id');
+            mostrarDetalleAhorro(ahorroId);
+        });
+    });
+
+    // Función para mostrar detalles del ahorro
+    async function mostrarDetalleAhorro(ahorroId) {
+        const modal = new bootstrap.Modal(document.getElementById('detalleAhorroModal'));
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const detalleContent = document.getElementById('detalleAhorroContent');
+        const btnValidar = document.getElementById('btnValidarAhorro');
+        const btnInvalidar = document.getElementById('btnInvalidarAhorro');
+
+        // Mostrar loading y ocultar contenido
+        loadingSpinner.style.display = 'block';
+        detalleContent.style.display = 'none';
+        btnValidar.style.display = 'none';
+        btnInvalidar.style.display = 'none';
+
+        modal.show();
+
+        try {
+            const response = await fetch(`/api/admin/ahorro/${ahorroId}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                // Llenar los datos del ahorro
+                document.getElementById('ahorroMonto').textContent = `$${data.monto.toFixed(2)}`;
+                document.getElementById('ahorroFecha').textContent = new Date(data.fecha).toLocaleString('es-ES');
+                document.getElementById('ahorroEstado').innerHTML = data.validado ? 
+                    '<span class="badge bg-success">Validado</span>' : 
+                    '<span class="badge bg-warning text-dark">Pendiente</span>';
+
+                // Llenar los datos del usuario
+                document.getElementById('usuarioNombre').textContent = `${data.usuario.nombre} ${data.usuario.apellido}`;
+                document.getElementById('usuarioEmail').textContent = data.usuario.email;
+                document.getElementById('usuarioFechaRegistro').textContent = new Date(data.usuario.fecha_registro).toLocaleDateString('es-ES');
+
+                // Llenar el resumen
+                document.getElementById('totalAhorrosUsuario').textContent = `$${data.resumen_usuario.total_ahorros.toFixed(2)}`;
+                document.getElementById('cantidadAhorrosUsuario').textContent = data.resumen_usuario.cantidad_ahorros;
+
+                // Mostrar/ocultar botones según el estado
+                if (!data.validado) {
+                    btnValidar.style.display = 'inline-block';
+                    btnValidar.onclick = () => actualizarEstadoAhorro(ahorroId, true);
+                } else {
+                    btnInvalidar.style.display = 'inline-block';
+                    btnInvalidar.onclick = () => actualizarEstadoAhorro(ahorroId, false);
+                }
+
+                // Mostrar contenido y ocultar loading
+                loadingSpinner.style.display = 'none';
+                detalleContent.style.display = 'block';
+            } else {
+                alert('Error: ' + data.error);
+                modal.hide();
+            }
+        } catch (error) {
+            console.error('Error al cargar detalles del ahorro:', error);
+            alert('Error al cargar los detalles del ahorro');
+            modal.hide();
+        }
+    }
+
+    // Función para actualizar el estado del ahorro
+    async function actualizarEstadoAhorro(ahorroId, validar) {
+        if (!confirm(`¿Está seguro de que desea ${validar ? 'validar' : 'invalidar'} este ahorro?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/admin/ahorro/${ahorroId}/validar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ validado: validar })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(data.mensaje);
+                location.reload(); // Recargar la página para ver los cambios
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error al actualizar el ahorro:', error);
+            alert('Error al actualizar el ahorro');
+        }
+    }
+});
+</script>
 {% endblock %}

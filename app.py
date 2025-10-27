@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import mysql.connector
 import os
 import certifi
@@ -93,6 +93,10 @@ def setup_database():
             id INT AUTO_INCREMENT PRIMARY KEY,
             nombre VARCHAR(100) NOT NULL,
             apellido VARCHAR(100) NOT NULL,
+            cedula VARCHAR(20) UNIQUE NOT NULL,
+            fecha_nacimiento DATE NOT NULL,
+            direccion VARCHAR(255) NOT NULL,
+            telefono VARCHAR(20) NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL,
             password VARCHAR(255) NOT NULL,
             rol ENUM('admin', 'ahorrador') DEFAULT 'ahorrador',
@@ -202,27 +206,90 @@ def admin_required(f):
 @app.route('/registro', methods=['GET', 'POST'])
 def registro():
     if request.method == 'POST':
-        nombre = request.form['nombre']
-        apellido = request.form['apellido']
-        email = request.form['email']
-        password = hash_password(request.form['password'])
-        rol = 'ahorrador'  # Por defecto, todos los usuarios nuevos son ahorradores
-        
-        conn = get_db_connection()
-        if conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute("INSERT INTO usuarios (nombre, apellido, email, password, rol) VALUES (%s, %s, %s, %s, %s)",
-                              (nombre, apellido, email, password, rol))
-                conn.commit()
-                flash('Registro exitoso. Por favor inicia sesión.', 'success')
-                return redirect(url_for('login'))
-            except mysql.connector.Error as err:
-                flash(f'Error al registrar: {err}', 'danger')
-            finally:
-                cursor.close()
-                conn.close()
-    
+        try:
+            # Obtener datos del formulario
+            nombre = request.form.get('nombre')
+            apellido = request.form.get('apellido')
+            cedula = request.form.get('cedula')
+            fecha_nacimiento = request.form.get('fecha_nacimiento')
+            direccion = request.form.get('direccion')
+            telefono = request.form.get('telefono')
+            email = request.form.get('email')
+            password = request.form.get('password')
+            confirm_password = request.form.get('confirm_password')
+
+            # Imprimir datos para depuración
+            print(f"Datos recibidos: nombre={nombre}, apellido={apellido}, cedula={cedula}, "
+                  f"fecha_nacimiento={fecha_nacimiento}, direccion={direccion}, telefono={telefono}, "
+                  f"email={email}")
+
+            # Validaciones
+            if not all([nombre, apellido, cedula, fecha_nacimiento, direccion, telefono, email, password, confirm_password]):
+                flash('Por favor complete todos los campos', 'error')
+                return redirect(url_for('registro'))
+
+            # Validar que cédula y teléfono contengan solo números
+            if not cedula.isdigit():
+                flash('La cédula debe contener solo números', 'error')
+                return redirect(url_for('registro'))
+
+            if not telefono.isdigit():
+                flash('El teléfono debe contener solo números', 'error')
+                return redirect(url_for('registro'))
+
+            if password != confirm_password:
+                flash('Las contraseñas no coinciden', 'error')
+                return redirect(url_for('registro'))
+
+            # Hash de la contraseña
+            hashed_password = hash_password(password)
+
+            # Conectar a la base de datos
+            conn = get_db_connection()
+            if conn:
+                try:
+                    cursor = conn.cursor()
+                    
+                    # Imprimir consulta SQL para depuración
+                    sql = '''INSERT INTO usuarios 
+                            (nombre, apellido, cedula, fecha_nacimiento, direccion, telefono, email, password) 
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'''
+                    values = (nombre, apellido, cedula, fecha_nacimiento, direccion, telefono, email, hashed_password)
+                    print(f"SQL: {sql}")
+                    print(f"Valores: {values}")
+                    
+                    # Ejecutar la inserción
+                    cursor.execute(sql, values)
+                    conn.commit()
+                    
+                    print("Registro exitoso")
+                    flash('Registro exitoso. Por favor inicie sesión.', 'success')
+                    return redirect(url_for('login'))
+                    
+                except mysql.connector.Error as err:
+                    print(f"Error MySQL: {err}")
+                    if err.errno == 1062:  # Error de duplicado
+                        if "cedula" in str(err):
+                            flash('Esta cédula ya está registrada', 'error')
+                        elif "email" in str(err):
+                            flash('Este correo electrónico ya está registrado', 'error')
+                        else:
+                            flash('Error en el registro: datos duplicados', 'error')
+                    else:
+                        flash(f'Error en el registro: {err}', 'error')
+                    return redirect(url_for('registro'))
+                finally:
+                    cursor.close()
+                    conn.close()
+            else:
+                flash('Error de conexión a la base de datos', 'error')
+                return redirect(url_for('registro'))
+                
+        except Exception as e:
+            print(f"Error general: {e}")
+            flash('Error en el registro', 'error')
+            return redirect(url_for('registro'))
+
     return render_template('registro.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -414,9 +481,30 @@ def validar_prestamo(prestamo_id, accion):
                 # Obtener la tasa de interés y plazo establecidos por el administrador
                 tasa_interes = float(request.form['tasa_interes'])
                 plazo_meses = int(request.form['plazo_meses'])
-                cursor.execute("UPDATE prestamos SET estado = 'aprobado', tasa_interes = %s, plazo_meses = %s WHERE id = %s", 
-                              (tasa_interes, plazo_meses, prestamo_id))
-                flash(f'Préstamo aprobado correctamente con tasa de interés del {tasa_interes}% y plazo de {plazo_meses} meses', 'success')
+                
+                # Obtener el monto del préstamo para calcular interés simple anualizado
+                cursor.execute("SELECT monto FROM prestamos WHERE id = %s", (prestamo_id,))
+                monto_prestamo = cursor.fetchone()[0]
+                
+                # Calcular interés mensual fijo: (monto * tasa_anual) / 12 meses
+                interes_anual = float(monto_prestamo) * (tasa_interes / 100)
+                interes_mensual_fijo = interes_anual / 12
+                
+                # Calcular cuota de capital mensual: monto / plazo
+                cuota_capital_mensual = float(monto_prestamo) / plazo_meses
+                
+                # Actualizar préstamo con nuevo sistema de interés simple
+                cursor.execute("""
+                    UPDATE prestamos 
+                    SET estado = 'aprobado', 
+                        tasa_interes = %s, 
+                        plazo_meses = %s,
+                        interes_mensual_fijo = %s,
+                        cuota_capital_mensual = %s
+                    WHERE id = %s
+                """, (tasa_interes, plazo_meses, interes_mensual_fijo, cuota_capital_mensual, prestamo_id))
+                
+                flash(f'Préstamo aprobado con interés simple anualizado: {tasa_interes}% anual = ${interes_mensual_fijo:.2f} mensual fijo + ${cuota_capital_mensual:.2f} capital por {plazo_meses} meses', 'success')
             else:
                 # Si no es POST, redirigir al panel de administración
                 flash('Debe proporcionar una tasa de interés y plazo para aprobar el préstamo', 'warning')
@@ -460,16 +548,25 @@ def ahorros():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
+    user_id = session['user_id']
+    
     # Obtener historial de ahorros del usuario
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT *, CASE WHEN validado = 1 THEN 'Validado' ELSE 'Pendiente' END as estado FROM ahorros WHERE usuario_id = %s ORDER BY fecha DESC", (session['user_id'],))
+        
+        # Obtener historial de ahorros
+        cursor.execute("SELECT *, CASE WHEN validado = 1 THEN 'Validado' ELSE 'Pendiente' END as estado FROM ahorros WHERE usuario_id = %s ORDER BY fecha DESC", (user_id,))
         historial_ahorros = cursor.fetchall()
+        
+        # Calcular total de ahorros validados
+        cursor.execute("SELECT SUM(monto) as total_ahorros FROM ahorros WHERE usuario_id = %s AND validado = 1", (user_id,))
+        total_ahorros = cursor.fetchone()['total_ahorros'] or 0
+        
         cursor.close()
         conn.close()
         
-        return render_template('ahorros.html', historial_ahorros=historial_ahorros)
+        return render_template('ahorros.html', historial_ahorros=historial_ahorros, total_ahorros=total_ahorros)
     
     flash('Error al conectar con la base de datos', 'danger')
     return redirect(url_for('dashboard'))
@@ -516,12 +613,29 @@ def prestamos():
                 # Calcular saldo pendiente
                 prestamo['saldo_pendiente'] = round(float(prestamo['monto']) - float(total_pagado), 2)
                 
+                # Calcular información de cuotas con interés simple (acceso defensivo)
+                interes_mensual_fijo = prestamo.get('interes_mensual_fijo')
+                cuota_capital_mensual = prestamo.get('cuota_capital_mensual')
+                plazo_meses = prestamo.get('plazo_meses', 0)
+                if interes_mensual_fijo is not None and cuota_capital_mensual is not None and plazo_meses:
+                    prestamo['cuota_total_mensual'] = float(interes_mensual_fijo) + float(cuota_capital_mensual)
+                    prestamo['total_intereses'] = float(interes_mensual_fijo) * int(plazo_meses)
+                    prestamo['total_a_pagar'] = float(prestamo['monto']) + prestamo['total_intereses']
+                else:
+                    # Para préstamos antiguos sin el nuevo sistema o sin columnas
+                    prestamo['cuota_total_mensual'] = None
+                    prestamo['total_intereses'] = None
+                    prestamo['total_a_pagar'] = None
+                
                 # Obtener historial de pagos
                 cursor.execute("SELECT * FROM pagos_prestamos WHERE prestamo_id = %s ORDER BY fecha DESC", (prestamo['id'],))
                 prestamo['pagos'] = cursor.fetchall()
             else:
                 prestamo['saldo_pendiente'] = prestamo['monto']
                 prestamo['pagos'] = []
+                prestamo['cuota_total_mensual'] = None
+                prestamo['total_intereses'] = None
+                prestamo['total_a_pagar'] = None
         
         cursor.close()
         conn.close()
@@ -692,40 +806,67 @@ def perfil():
     user_id = session['user_id']
     conn = get_db_connection()
     
+    if request.method == 'POST':
+        nombre = request.form['nombre']
+        apellido = request.form['apellido']
+        cedula = request.form['cedula']
+        fecha_nacimiento = request.form['fecha_nacimiento']
+        direccion = request.form['direccion']
+        telefono = request.form['telefono']
+        email = request.form['email']
+        
+        if conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET nombre = %s, apellido = %s, fecha_nacimiento = %s, 
+                        direccion = %s, telefono = %s, email = %s 
+                    WHERE id = %s
+                """, (nombre, apellido, fecha_nacimiento, 
+                     direccion, telefono, email, user_id))
+                conn.commit()
+                flash('Perfil actualizado exitosamente', 'success')
+            except mysql.connector.Error as err:
+                if err.errno == 1062:  # Error de duplicado
+                    if "email" in str(err):
+                        flash('El correo electrónico ya está registrado', 'danger')
+                    else:
+                        flash('Error: Valor duplicado', 'danger')
+                else:
+                    flash(f'Error al actualizar perfil: {err}', 'danger')
+            finally:
+                cursor.close()
+                conn.close()
+            return redirect(url_for('perfil'))
+    
     if conn:
         cursor = conn.cursor(dictionary=True)
+        
+        # Obtener información del usuario
         cursor.execute("SELECT * FROM usuarios WHERE id = %s", (user_id,))
         usuario = cursor.fetchone()
         
-        if request.method == 'POST':
-            nombre = request.form['nombre']
-            apellido = request.form['apellido']
-            email = request.form['email']
-            
-            try:
-                cursor.execute("UPDATE usuarios SET nombre = %s, apellido = %s, email = %s WHERE id = %s",
-                              (nombre, apellido, email, user_id))
-                conn.commit()
-                session['nombre'] = nombre  # Actualizar el nombre en la sesión
-                flash('Información actualizada correctamente', 'success')
-                return redirect(url_for('perfil'))
-            except mysql.connector.Error as err:
-                flash(f'Error al actualizar: {err}', 'danger')
-        
-        # Obtener totales para el resumen
-        cursor.execute("SELECT SUM(monto) as total_ahorros FROM ahorros WHERE usuario_id = %s", (user_id,))
+        # Obtener total de ahorros validados
+        cursor.execute("SELECT SUM(monto) as total_ahorros FROM ahorros WHERE usuario_id = %s AND validado = 1", (user_id,))
         total_ahorros = cursor.fetchone()['total_ahorros'] or 0
         
-        cursor.execute("SELECT COUNT(*) as num_prestamos FROM prestamos WHERE usuario_id = %s AND estado != 'pagado'", (user_id,))
-        num_prestamos = cursor.fetchone()['num_prestamos'] or 0
+        # Obtener total de préstamos activos
+        cursor.execute("""
+            SELECT COUNT(*) as num_prestamos, COALESCE(SUM(monto), 0) as total_prestamos 
+            FROM prestamos 
+            WHERE usuario_id = %s AND estado != 'pagado'
+        """, (user_id,))
+        prestamos_info = cursor.fetchone()
         
         cursor.close()
         conn.close()
         
         return render_template('perfil.html', 
-                              usuario=usuario, 
-                              total_ahorros=total_ahorros,
-                              num_prestamos=num_prestamos)
+                             usuario=usuario,
+                             total_ahorros=total_ahorros,
+                             num_prestamos=prestamos_info['num_prestamos'],
+                             total_prestamos=prestamos_info['total_prestamos'])
     
     flash('Error al conectar con la base de datos', 'danger')
     return redirect(url_for('dashboard'))
@@ -734,139 +875,433 @@ def perfil():
 @login_required
 def cambiar_password():
     user_id = session['user_id']
-    current_password = hash_password(request.form['current_password'])
-    new_password = hash_password(request.form['new_password'])
+    current_password = request.form['current_password']
+    new_password = request.form['new_password']
+    confirm_password = request.form['confirm_password']
     
+    # Verificar que las contraseñas nuevas coinciden
+    if new_password != confirm_password:
+        flash('Las contraseñas nuevas no coinciden', 'danger')
+        return redirect(url_for('perfil'))
+    
+    # Verificar la contraseña actual
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM usuarios WHERE id = %s AND password = %s", (user_id, current_password))
+        cursor.execute("SELECT password FROM usuarios WHERE id = %s", (user_id,))
         usuario = cursor.fetchone()
         
-        if usuario:
-            cursor.execute("UPDATE usuarios SET password = %s WHERE id = %s", (new_password, user_id))
-            conn.commit()
-            cursor.close()
-            conn.close()
-            flash('Contraseña actualizada correctamente', 'success')
-        else:
+        if not usuario or usuario['password'] != hash_password(current_password):
             cursor.close()
             conn.close()
             flash('La contraseña actual es incorrecta', 'danger')
+            return redirect(url_for('perfil'))
+        
+        # Actualizar la contraseña
+        try:
+            cursor.execute("""
+                UPDATE usuarios 
+                SET password = %s 
+                WHERE id = %s
+            """, (hash_password(new_password), user_id))
+            conn.commit()
+            flash('Contraseña actualizada exitosamente', 'success')
+        except mysql.connector.Error as err:
+            flash(f'Error al actualizar la contraseña: {err}', 'danger')
+        finally:
+            cursor.close()
+            conn.close()
     else:
         flash('Error al conectar con la base de datos', 'danger')
     
     return redirect(url_for('perfil'))
+
+# FUNCIONES PARA CÁLCULO DE TABLA DE AMORTIZACIÓN
+def calcular_tabla_amortizacion(monto_prestamo, tasa_interes_anual, plazo_meses):
+    """
+    Calcula la tabla de amortización para un préstamo
+    Retorna lista de diccionarios con mes, abono_capital, interes, cuota_total, saldo_restante
+    """
+    if not all([monto_prestamo, tasa_interes_anual, plazo_meses]) or plazo_meses <= 0:
+        return []
+    
+    try:
+        # Convertir tasa anual a mensual
+        tasa_interes_mensual = float(tasa_interes_anual) / 100 / 12
+        monto = float(monto_prestamo)
+        plazo = int(plazo_meses)
+        
+        # Calcular cuota fija mensual (método francés)
+        if tasa_interes_mensual > 0:
+            cuota_fija = monto * (tasa_interes_mensual * (1 + tasa_interes_mensual)**plazo) / ((1 + tasa_interes_mensual)**plazo - 1)
+        else:
+            cuota_fija = monto / plazo
+        
+        tabla = []
+        saldo_restante = monto
+        
+        for mes in range(1, plazo + 1):
+            # Calcular interés del mes
+            interes_mes = saldo_restante * tasa_interes_mensual
+            
+            # Calcular abono a capital
+            abono_capital = cuota_fija - interes_mes
+            
+            # Actualizar saldo
+            saldo_restante -= abono_capital
+            
+            # Ajustar última cuota para evitar decimales
+            if mes == plazo:
+                abono_capital += saldo_restante
+                saldo_restante = 0
+            
+            tabla.append({
+                'mes': mes,
+                'abono_capital': round(abono_capital, 2),
+                'interes': round(interes_mes, 2),
+                'cuota_total': round(cuota_fija, 2),
+                'saldo_restante': round(saldo_restante, 2)
+            })
+        
+        return tabla
+    except Exception as e:
+        print(f"Error calculando tabla de amortización: {e}")
+        return []
+
+# ENDPOINTS API PARA ADMINISTRADOR - DETALLES DE AHORROS
+@app.route('/api/admin/ahorro/<int:ahorro_id>')
+@login_required
+@admin_required
+def api_detalle_ahorro(ahorro_id):
+    """Obtiene detalles completos de un ahorro específico"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Obtener información del ahorro con datos del usuario
+        cursor.execute("""
+            SELECT a.*, u.nombre, u.apellido, u.email, u.fecha_registro as fecha_usuario
+            FROM ahorros a
+            JOIN usuarios u ON a.usuario_id = u.id
+            WHERE a.id = %s
+        """, (ahorro_id,))
+        
+        ahorro = cursor.fetchone()
+        
+        if not ahorro:
+            return jsonify({'error': 'Ahorro no encontrado'}), 404
+        
+        # Obtener total de ahorros del usuario
+        cursor.execute("""
+            SELECT SUM(monto) as total_ahorros, COUNT(*) as cantidad_ahorros
+            FROM ahorros
+            WHERE usuario_id = %s
+        """, (ahorro['usuario_id'],))
+        
+        resumen = cursor.fetchone()
+        
+        # Obtener historial de validaciones (si existe tabla de auditoría)
+        # Por ahora, solo mostramos el estado actual
+        
+        response = {
+            'id': ahorro['id'],
+            'monto': float(ahorro['monto']),
+            'fecha': ahorro['fecha'].strftime('%Y-%m-%d %H:%M:%S') if isinstance(ahorro['fecha'], datetime) else str(ahorro['fecha']),
+            'validado': bool(ahorro['validado']),
+            'usuario': {
+                'id': ahorro['usuario_id'],
+                'nombre': ahorro['nombre'],
+                'apellido': ahorro['apellido'],
+                'email': ahorro['email'],
+                'fecha_registro': ahorro['fecha_usuario'].strftime('%Y-%m-%d') if isinstance(ahorro['fecha_usuario'], datetime) else str(ahorro['fecha_usuario'])
+            },
+            'resumen_usuario': {
+                'total_ahorros': float(resumen['total_ahorros'] or 0),
+                'cantidad_ahorros': resumen['cantidad_ahorros']
+            }
+        }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"Error obteniendo detalles de ahorro: {e}")
+        return jsonify({'error': 'Error al obtener detalles del ahorro'}), 500
+    
+    finally:
+        cursor.close()
+        conn.close()
+
+# ENDPOINTS API PARA ADMINISTRADOR - PRÓSTICO DE PRÉSTAMOS
+@app.route('/api/admin/prestamo/<int:prestamo_id>/pronostico')
+@login_required
+@admin_required
+def api_pronostico_prestamo(prestamo_id):
+    """Obtiene el pronóstico de pagos de un préstamo específico"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Obtener información del préstamo con datos del usuario
+        cursor.execute("""
+            SELECT p.*, u.nombre, u.apellido, u.email,
+                   COALESCE(p.interes_mensual_fijo, 0) as interes_mensual_fijo,
+                   COALESCE(p.cuota_capital_mensual, 0) as cuota_capital_mensual
+            FROM prestamos p
+            JOIN usuarios u ON p.usuario_id = u.id
+            WHERE p.id = %s
+        """, (prestamo_id,))
+        
+        prestamo = cursor.fetchone()
+        
+        if not prestamo:
+            return jsonify({'error': 'Préstamo no encontrado'}), 404
+        
+        # Calcular tabla de amortización
+        tabla_amortizacion = calcular_tabla_amortizacion(
+            prestamo['monto'],
+            prestamo['tasa_interes'],
+            prestamo['plazo_meses']
+        )
+        
+        # Obtener pagos realizados
+        cursor.execute("""
+            SELECT COUNT(*) as pagos_realizados, SUM(monto) as total_pagado
+            FROM pagos_prestamos
+            WHERE prestamo_id = %s
+        """, (prestamo_id,))
+        
+        pagos_info = cursor.fetchone()
+        
+        # Formatear tabla de amortización al formato esperado por el template
+        cuota_mensual = tabla_amortizacion[0]['cuota_total'] if tabla_amortizacion else 0.0
+        tabla_amortizacion_formateada = [
+            {
+                'mes': item['mes'],
+                'cuota_total': item['cuota_total'],
+                'capital': item['abono_capital'],
+                'interes': item['interes'],
+                'saldo_pendiente': item['saldo_restante']
+            } for item in tabla_amortizacion
+        ]
+
+        total_pagado = float(pagos_info['total_pagado'] or 0)
+        total_intereses = float(sum(item['interes'] for item in tabla_amortizacion))
+        saldo_pendiente = float(prestamo['monto']) - total_pagado
+
+        # Calcular fecha de finalización (fecha_solicitud + plazo_meses)
+        try:
+            fecha_solicitud_dt = prestamo['fecha_solicitud'] if isinstance(prestamo['fecha_solicitud'], datetime) else datetime.strptime(str(prestamo['fecha_solicitud']), '%Y-%m-%d %H:%M:%S') if ' ' in str(prestamo['fecha_solicitud']) else datetime.strptime(str(prestamo['fecha_solicitud']), '%Y-%m-%d')
+        except Exception:
+            fecha_solicitud_dt = datetime.now()
+        import calendar
+        year = fecha_solicitud_dt.year
+        month = fecha_solicitud_dt.month + int(prestamo['plazo_meses'])
+        day = fecha_solicitud_dt.day
+        year += (month - 1) // 12
+        month = ((month - 1) % 12) + 1
+        last_day = calendar.monthrange(year, month)[1]
+        day = min(day, last_day)
+        fecha_finalizacion_dt = datetime(year, month, day)
+        
+        response = {
+            'monto_prestamo': float(prestamo['monto']),
+            'tasa_interes': float(prestamo['tasa_interes']),
+            'plazo_meses': int(prestamo['plazo_meses']),
+            'cuota_mensual': float(cuota_mensual),
+            'tabla_amortizacion': tabla_amortizacion_formateada,
+            'total_pagado': total_pagado,
+            'total_intereses': total_intereses,
+            'fecha_finalizacion': fecha_finalizacion_dt.strftime('%Y-%m-%d')
+        }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"Error obteniendo pronóstico de préstamo: {e}")
+        return jsonify({'error': 'Error al obtener pronóstico del préstamo'}), 500
+    
+    finally:
+        cursor.close()
+        conn.close()
+
+# ACTUALIZAR ESTADO DE AHORRO (VALIDAR/INVALIDAR)
+@app.route('/api/admin/ahorro/<int:ahorro_id>/validar', methods=['POST'])
+@login_required
+@admin_required
+def api_validar_ahorro(ahorro_id):
+    """Actualiza el estado de validación de un ahorro"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+    
+    cursor = conn.cursor()
+    
+    try:
+        data = request.get_json()
+        validado = data.get('validado', False)
+        
+        cursor.execute("""
+            UPDATE ahorros 
+            SET validado = %s 
+            WHERE id = %s
+        """, (validado, ahorro_id))
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Ahorro no encontrado'}), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': f'Ahorro {"validado" if validado else "invalidado"} exitosamente'
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error actualizando ahorro: {e}")
+        return jsonify({'error': 'Error al actualizar el ahorro'}), 500
+    
+    finally:
+        cursor.close()
+        conn.close()
+
+# ACTUALIZAR ESTADO DE PRÉSTAMO
+@app.route('/api/admin/prestamo/<int:prestamo_id>/estado', methods=['POST'])
+@login_required
+@admin_required
+def api_actualizar_estado_prestamo(prestamo_id):
+    """Actualiza el estado de un préstamo"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+    
+    cursor = conn.cursor()
+    
+    try:
+        data = request.get_json()
+        nuevo_estado = data.get('estado')
+        
+        if nuevo_estado not in ['pendiente', 'aprobado', 'rechazado', 'pagado']:
+            return jsonify({'error': 'Estado inválido'}), 400
+        
+        cursor.execute("""
+            UPDATE prestamos 
+            SET estado = %s 
+            WHERE id = %s
+        """, (nuevo_estado, prestamo_id))
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Préstamo no encontrado'}), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': f'Préstamo marcado como {nuevo_estado} exitosamente'
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error actualizando préstamo: {e}")
+        return jsonify({'error': 'Error al actualizar el préstamo'}), 500
+    
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/admin/pagos_prestamos', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_pagos_prestamos():
     conn = get_db_connection()
-    if conn:
-        cursor = conn.cursor(dictionary=True)
-        
-        # Obtener todos los usuarios ahorradores para el formulario
-        cursor.execute("SELECT * FROM usuarios WHERE rol = 'ahorrador' ORDER BY nombre ASC")
+    if not conn:
+        flash('Error al conectar con la base de datos', 'danger')
+        return redirect(url_for('admin'))
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Cargar lista de usuarios para el selector
+        cursor.execute("SELECT * FROM usuarios ORDER BY nombre ASC")
         usuarios = cursor.fetchall()
-        
+
         if request.method == 'POST':
+            usuario_id = int(request.form['usuario_id'])
             prestamo_id = int(request.form['prestamo_id'])
             monto = float(request.form['monto'])
-            fecha = request.form['fecha']
-            
-            # Verificar que el préstamo existe y está aprobado
-            cursor.execute("SELECT * FROM prestamos WHERE id = %s AND estado = 'aprobado'", (prestamo_id,))
+            fecha = request.form.get('fecha')  # opcional, por defecto NOW()
+
+            # Validar que el préstamo pertenece al usuario y está aprobado
+            cursor.execute("SELECT * FROM prestamos WHERE id = %s AND usuario_id = %s", (prestamo_id, usuario_id))
             prestamo = cursor.fetchone()
-            
             if not prestamo:
-                flash('El préstamo seleccionado no existe o no está aprobado', 'danger')
+                flash('Préstamo no encontrado para el ahorrador seleccionado', 'danger')
                 return redirect(url_for('admin_pagos_prestamos'))
-            
-            # Obtener la suma de pagos realizados para este préstamo
-            cursor.execute("SELECT SUM(monto) as total_pagado FROM pagos_prestamos WHERE prestamo_id = %s", (prestamo_id,))
-            resultado = cursor.fetchone()
-            total_pagado = resultado['total_pagado'] if resultado['total_pagado'] else 0
-            
-            # Calcular saldo pendiente antes del nuevo pago
+
+            # Calcular saldo pendiente con pagos previos
+            cursor.execute("SELECT COALESCE(SUM(monto), 0) as total_pagado FROM pagos_prestamos WHERE prestamo_id = %s", (prestamo_id,))
+            total_pagado = cursor.fetchone()['total_pagado'] or 0
             saldo_pendiente = float(prestamo['monto']) - float(total_pagado)
-            
-            # Verificar que el monto del pago no exceda el saldo pendiente
+
+            # No permitir pagar más del saldo
             if monto > saldo_pendiente:
-                flash(f'El monto del pago (${monto}) excede el saldo pendiente (${saldo_pendiente})', 'danger')
+                flash('El monto del pago excede el saldo pendiente', 'warning')
                 return redirect(url_for('admin_pagos_prestamos'))
-            
-            # Insertar el nuevo pago
-            cursor.execute("INSERT INTO pagos_prestamos (prestamo_id, monto, fecha) VALUES (%s, %s, %s)", 
-                          (prestamo_id, monto, fecha))
-            
-            # Si con este pago se completa el préstamo, actualizar su estado
-            nuevo_saldo = saldo_pendiente - monto
+
+            # Registrar el pago
+            if fecha:
+                cursor.execute(
+                    "INSERT INTO pagos_prestamos (prestamo_id, monto, fecha) VALUES (%s, %s, %s)",
+                    (prestamo_id, monto, fecha)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO pagos_prestamos (prestamo_id, monto) VALUES (%s, %s)",
+                    (prestamo_id, monto)
+                )
+            conn.commit()
+
+            # Recalcular saldo y actualizar estado si se pagó completo
+            nuevo_total_pagado = total_pagado + monto
+            nuevo_saldo = float(prestamo['monto']) - float(nuevo_total_pagado)
             if nuevo_saldo <= 0:
                 cursor.execute("UPDATE prestamos SET estado = 'pagado' WHERE id = %s", (prestamo_id,))
-                flash('¡Préstamo completamente pagado!', 'success')
-            
-            conn.commit()
+                conn.commit()
+
             flash('Pago registrado correctamente', 'success')
             return redirect(url_for('admin_pagos_prestamos'))
-        
-        # Obtener los últimos pagos registrados con información del ahorrador y saldo restante
-        cursor.execute("""
-            SELECT pp.*, p.monto as prestamo_monto, p.usuario_id, u.nombre, u.apellido,
-                   (SELECT SUM(monto) FROM pagos_prestamos WHERE prestamo_id = pp.prestamo_id) as total_pagado
+
+        # Obtener últimos pagos registrados con datos del usuario
+        cursor.execute(
+            """
+            SELECT pp.*, u.nombre, u.apellido,
+                   (p.monto - COALESCE(SUM(pp2.monto), 0)) AS saldo_restante
             FROM pagos_prestamos pp
             JOIN prestamos p ON pp.prestamo_id = p.id
             JOIN usuarios u ON p.usuario_id = u.id
-            ORDER BY pp.fecha DESC LIMIT 10
-        """)
+            LEFT JOIN pagos_prestamos pp2 ON pp2.prestamo_id = p.id AND pp2.fecha <= pp.fecha
+            GROUP BY pp.id
+            ORDER BY pp.fecha DESC
+            LIMIT 10
+            """
+        )
         ultimos_pagos = cursor.fetchall()
-        
-        # Calcular saldo restante para cada pago
-        for pago in ultimos_pagos:
-            pago['saldo_restante'] = round(float(pago['prestamo_monto']) - float(pago['total_pagado']), 2)
-        
-        cursor.close()
-        conn.close()
-        
-        return render_template('admin_pagos_prestamos.html', usuarios=usuarios, ultimos_pagos=ultimos_pagos)
-    
-    flash('Error al conectar con la base de datos', 'danger')
-    return redirect(url_for('admin'))
 
-@app.route('/api/prestamos_usuario/<int:usuario_id>')
-@login_required
-@admin_required
-def api_prestamos_usuario(usuario_id):
-    conn = get_db_connection()
-    if conn:
-        cursor = conn.cursor(dictionary=True)
-        
-        # Obtener préstamos aprobados del usuario
-        cursor.execute("SELECT * FROM prestamos WHERE usuario_id = %s AND estado = 'aprobado'", (usuario_id,))
-        prestamos = cursor.fetchall()
-        
-        # Para cada préstamo, calcular el saldo pendiente
-        for prestamo in prestamos:
-            # Obtener la suma de pagos realizados para este préstamo
-            cursor.execute("SELECT SUM(monto) as total_pagado FROM pagos_prestamos WHERE prestamo_id = %s", (prestamo['id'],))
-            resultado = cursor.fetchone()
-            total_pagado = resultado['total_pagado'] if resultado['total_pagado'] else 0
-            
-            # Calcular saldo pendiente
-            prestamo['saldo_pendiente'] = round(float(prestamo['monto']) - float(total_pagado), 2)
-        
+        return render_template('admin_pagos_prestamos.html', usuarios=usuarios, ultimos_pagos=ultimos_pagos)
+    except Exception as e:
+        print(f"Error en admin_pagos_prestamos: {e}")
+        flash('Error al cargar la página de pagos de préstamos', 'danger')
+        return redirect(url_for('admin'))
+    finally:
         cursor.close()
         conn.close()
-        
-        # Convertir Decimal a float para serialización JSON
-        for prestamo in prestamos:
-            prestamo['monto'] = float(prestamo['monto'])
-            if prestamo['tasa_interes']:
-                prestamo['tasa_interes'] = float(prestamo['tasa_interes'])
-        
-        return {'prestamos': prestamos}
-    
-    return {'error': 'Error al conectar con la base de datos'}, 500
+
+# (eliminado bloque duplicado de arranque)
 
 # Función para crear un usuario administrador inicial si no existe
 def crear_admin_inicial():
