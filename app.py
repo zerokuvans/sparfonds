@@ -57,8 +57,8 @@ if is_production:
 
 # Context processor para proporcionar variables a todas las plantillas
 @app.context_processor
-def inject_now():
-    return {'now': datetime.now()}
+def utility_processor():
+    return dict(now=datetime.now)
 
 # Configuración de la base de datos MySQL desde variables de entorno
 db_config = {
@@ -807,37 +807,45 @@ def perfil():
     conn = get_db_connection()
     
     if request.method == 'POST':
-        nombre = request.form['nombre']
-        apellido = request.form['apellido']
-        cedula = request.form['cedula']
-        fecha_nacimiento = request.form['fecha_nacimiento']
-        direccion = request.form['direccion']
-        telefono = request.form['telefono']
-        email = request.form['email']
-        
-        if conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute("""
-                    UPDATE usuarios 
-                    SET nombre = %s, apellido = %s, fecha_nacimiento = %s, 
-                        direccion = %s, telefono = %s, email = %s 
-                    WHERE id = %s
-                """, (nombre, apellido, fecha_nacimiento, 
-                     direccion, telefono, email, user_id))
-                conn.commit()
-                flash('Perfil actualizado exitosamente', 'success')
-            except mysql.connector.Error as err:
-                if err.errno == 1062:  # Error de duplicado
-                    if "email" in str(err):
-                        flash('El correo electrónico ya está registrado', 'danger')
+        try:
+            nombre = request.form['nombre']
+            apellido = request.form['apellido']
+            fecha_nacimiento = request.form['fecha_nacimiento']
+            direccion = request.form['direccion']
+            telefono = request.form['telefono']
+            email = request.form['email']
+            
+            # Validar que todos los campos requeridos estén presentes
+            if not all([nombre, apellido, fecha_nacimiento, direccion, telefono, email]):
+                flash('Por favor complete todos los campos requeridos', 'danger')
+                return redirect(url_for('perfil'))
+            
+            if conn:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("""
+                        UPDATE usuarios 
+                        SET nombre = %s, apellido = %s, fecha_nacimiento = %s, 
+                            direccion = %s, telefono = %s, email = %s 
+                        WHERE id = %s
+                    """, (nombre, apellido, fecha_nacimiento, 
+                         direccion, telefono, email, user_id))
+                    conn.commit()
+                    flash('Perfil actualizado exitosamente', 'success')
+                except mysql.connector.Error as err:
+                    if err.errno == 1062:  # Error de duplicado
+                        if "email" in str(err):
+                            flash('El correo electrónico ya está registrado', 'danger')
+                        else:
+                            flash('Error: Valor duplicado', 'danger')
                     else:
-                        flash('Error: Valor duplicado', 'danger')
-                else:
-                    flash(f'Error al actualizar perfil: {err}', 'danger')
-            finally:
-                cursor.close()
-                conn.close()
+                        flash(f'Error al actualizar perfil: {err}', 'danger')
+                finally:
+                    cursor.close()
+                    conn.close()
+                return redirect(url_for('perfil'))
+        except Exception as e:
+            flash(f'Error al procesar el formulario: {str(e)}', 'danger')
             return redirect(url_for('perfil'))
     
     if conn:

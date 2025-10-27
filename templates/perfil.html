@@ -32,7 +32,9 @@
                     </div>
                     <div class="mb-3">
                         <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento</label>
-                        <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" value="{{ usuario.fecha_nacimiento.strftime('%Y-%m-%d') if usuario.fecha_nacimiento else '' }}" required>
+                        <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" 
+                               value="{{ usuario.fecha_nacimiento.strftime('%Y-%m-%d') if usuario.fecha_nacimiento else '' }}" 
+                               max="{{ now().strftime('%Y-%m-%d') }}" required>
                         <div class="invalid-feedback">
                             Por favor selecciona tu fecha de nacimiento.
                         </div>
@@ -96,13 +98,9 @@
                 </form>
             </div>
         </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header bg-success text-white">
+        
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white">
                 <h5 class="mb-0">Resumen de Cuenta</h5>
             </div>
             <div class="card-body">
