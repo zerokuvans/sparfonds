@@ -1,0 +1,91 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-users me-2"></i>Carga Masiva de Usuarios
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Instrucciones -->
+                <div class="alert alert-info">
+                    <h5 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Instrucciones:</h5>
+                    <ul class="mb-0">
+                        <li>Suba un archivo CSV con los datos de los usuarios</li>
+                        <li>El archivo debe contener las siguientes columnas: <strong>nombre, apellido, email, cedula, fecha_nacimiento, direccion, telefono</strong></li>
+                        <li>La contraseña se generará automáticamente como: <strong>CC + cédula</strong> (ej: CC12345678)</li>
+                        <li>Los usuarios se crearán con rol de <strong>ahorrador</strong></li>
+                        <li>Formato de fecha: <strong>YYYY-MM-DD</strong> (ej: 1990-01-15)</li>
+                    </ul>
+                </div>
+
+                <!-- Ejemplo de CSV -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="fas fa-file-csv me-2"></i>Ejemplo de formato CSV:</h6>
+                        <a href="{{ url_for('descargar_ejemplo_csv') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-download me-1"></i>Descargar Ejemplo
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        <pre class="mb-0"><small>nombre,apellido,email,cedula,fecha_nacimiento,direccion,telefono
+Juan,Pérez,juan.perez@email.com,12345678,1985-03-15,Calle 123 #45-67,3001234567
+María,Gómez,maria.gomez@email.com,87654321,1990-07-22,Carrera 89 #12-34,3109876543</small></pre>
+                    </div>
+                </div>
+
+                <!-- Formulario de carga -->
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="archivo_csv" class="form-label">
+                            <i class="fas fa-upload me-2"></i>Seleccionar archivo CSV:
+                        </label>
+                        <input type="file" class="form-control" id="archivo_csv" name="archivo_csv" 
+                               accept=".csv" required>
+                        <div class="form-text">
+                            Solo se aceptan archivos con extensión .csv
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('admin') }}" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-arrow-left me-2"></i>Volver al Panel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i>Cargar Usuarios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script para validar archivo -->
+<script>
+document.getElementById('archivo_csv').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const fileName = file.name;
+        const fileExtension = fileName.split('.').pop().toLowerCase();
+        
+        if (fileExtension !== 'csv') {
+            alert('Por favor seleccione un archivo CSV válido.');
+            e.target.value = '';
+            return;
+        }
+        
+        // Validar tamaño del archivo (máximo 5MB)
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+            alert('El archivo no debe superar los 5MB.');
+            e.target.value = '';
+            return;
+        }
+    }
+});
+</script>
+{% endblock %}

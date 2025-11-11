@@ -9,6 +9,8 @@ import hashlib
 from functools import wraps
 from dotenv import load_dotenv
 from werkzeug.middleware.proxy_fix import ProxyFix
+import csv
+import io
 
 # Cargar variables de entorno desde el archivo .env
 load_dotenv()
@@ -1138,6 +1140,58 @@ def api_pronostico_prestamo(prestamo_id):
         cursor.close()
         conn.close()
 
+# API: Obtener préstamos aprobados de un usuario (para selector en pagos)
+@app.route('/api/prestamos_usuario/<int:usuario_id>')
+@login_required
+@admin_required
+def api_prestamos_usuario(usuario_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Error de conexión a la base de datos'}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Obtener préstamos aprobados del usuario
+        cursor.execute("""
+            SELECT p.*
+            FROM prestamos p
+            WHERE p.usuario_id = %s AND p.estado = 'aprobado'
+            ORDER BY p.id DESC
+        """, (usuario_id,))
+        prestamos = cursor.fetchall()
+
+        resultado = []
+        for p in prestamos:
+            # Calcular saldo pendiente con pagos previos
+            cursor.execute("SELECT COALESCE(SUM(monto), 0) as total_pagado FROM pagos_prestamos WHERE prestamo_id = %s", (p['id'],))
+            total_pagado = cursor.fetchone()['total_pagado'] or 0
+            saldo_pendiente = float(p['monto']) - float(total_pagado)
+
+            item = {
+                'id': p['id'],
+                'monto': float(p['monto']),
+                'saldo_pendiente': float(saldo_pendiente),
+            }
+
+            # Incluir cuota sugerida si existe (interés simple anualizado)
+            interes_mensual_fijo = p.get('interes_mensual_fijo')
+            cuota_capital_mensual = p.get('cuota_capital_mensual')
+            if interes_mensual_fijo is not None and cuota_capital_mensual is not None:
+                try:
+                    item['cuota_sugerida'] = float(interes_mensual_fijo) + float(cuota_capital_mensual)
+                except Exception:
+                    pass
+
+            resultado.append(item)
+
+        return jsonify({'prestamos': resultado})
+    except Exception as e:
+        print(f"Error en api_prestamos_usuario: {e}")
+        return jsonify({'error': 'Error al obtener préstamos del usuario'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 # ACTUALIZAR ESTADO DE AHORRO (VALIDAR/INVALIDAR)
 @app.route('/api/admin/ahorro/<int:ahorro_id>/validar', methods=['POST'])
 @login_required
@@ -1234,8 +1288,14 @@ def admin_pagos_prestamos():
 
     cursor = conn.cursor(dictionary=True)
     try:
-        # Cargar lista de usuarios para el selector
-        cursor.execute("SELECT * FROM usuarios ORDER BY nombre ASC")
+        # Cargar lista de usuarios para el selector: solo quienes tienen préstamos aprobados
+        cursor.execute("""
+            SELECT DISTINCT u.*
+            FROM usuarios u
+            JOIN prestamos p ON u.id = p.usuario_id
+            WHERE p.estado = 'aprobado'
+            ORDER BY u.nombre ASC
+        """)
         usuarios = cursor.fetchall()
 
         if request.method == 'POST':
@@ -1245,7 +1305,7 @@ def admin_pagos_prestamos():
             fecha = request.form.get('fecha')  # opcional, por defecto NOW()
 
             # Validar que el préstamo pertenece al usuario y está aprobado
-            cursor.execute("SELECT * FROM prestamos WHERE id = %s AND usuario_id = %s", (prestamo_id, usuario_id))
+            cursor.execute("SELECT * FROM prestamos WHERE id = %s AND usuario_id = %s AND estado = 'aprobado'", (prestamo_id, usuario_id))
             prestamo = cursor.fetchone()
             if not prestamo:
                 flash('Préstamo no encontrado para el ahorrador seleccionado', 'danger')
@@ -1375,6 +1435,370 @@ def crear_admin_inicial():
         
         cursor.close()
         conn.close()
+
+# Función para procesar archivo CSV de usuarios
+def procesar_csv_usuarios(archivo_csv):
+    """Procesa un archivo CSV con datos de usuarios y retorna lista de usuarios a crear"""
+    usuarios = []
+    errores = []
+    
+    try:
+        # Leer el archivo CSV
+        stream = io.StringIO(archivo_csv.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        # Validar que el CSV tenga las columnas necesarias
+        columnas_requeridas = ['nombre', 'apellido', 'email', 'cedula', 'fecha_nacimiento', 'direccion', 'telefono']
+        columnas_csv = csv_reader.fieldnames or []
+        
+        for columna in columnas_requeridas:
+            if columna not in columnas_csv:
+                errores.append(f"Columna faltante: {columna}")
+                return [], errores
+        
+        # Procesar cada fila
+        for fila_num, fila in enumerate(csv_reader, start=2):  # start=2 porque la fila 1 es el encabezado
+            try:
+                # Validar datos básicos
+                if not all(fila.get(campo, '').strip() for campo in ['nombre', 'apellido', 'email', 'cedula']):
+                    errores.append(f"Fila {fila_num}: Datos básicos incompletos")
+                    continue
+                
+                # Crear usuario con contraseña por defecto CC+cedula
+                usuario = {
+                    'nombre': fila['nombre'].strip(),
+                    'apellido': fila['apellido'].strip(),
+                    'email': fila['email'].strip().lower(),
+                    'cedula': fila['cedula'].strip(),
+                    'fecha_nacimiento': fila['fecha_nacimiento'].strip(),
+                    'direccion': fila['direccion'].strip(),
+                    'telefono': fila['telefono'].strip(),
+                    'password': hash_password(f"CC{fila['cedula'].strip()}"),  # Contraseña: CC+cedula
+                    'rol': 'ahorrador'
+                }
+                
+                usuarios.append(usuario)
+                
+            except Exception as e:
+                errores.append(f"Fila {fila_num}: Error procesando fila - {str(e)}")
+                
+    except Exception as e:
+        errores.append(f"Error leyendo archivo CSV: {str(e)}")
+    
+    return usuarios, errores
+
+# Ruta para carga masiva de usuarios
+@app.route('/admin/carga_masiva_usuarios', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def carga_masiva_usuarios():
+    if request.method == 'POST':
+        # Verificar que se haya subido un archivo
+        if 'archivo_csv' not in request.files:
+            flash('No se ha seleccionado ningún archivo', 'danger')
+            return redirect(request.url)
+        
+        archivo = request.files['archivo_csv']
+        if archivo.filename == '':
+            flash('No se ha seleccionado ningún archivo', 'danger')
+            return redirect(request.url)
+        
+        # Procesar el archivo CSV
+        usuarios, errores = procesar_csv_usuarios(archivo)
+        
+        if errores:
+            for error in errores:
+                flash(error, 'danger')
+            return redirect(request.url)
+        
+        if not usuarios:
+            flash('El archivo CSV no contiene usuarios válidos', 'warning')
+            return redirect(request.url)
+        
+        # Conectar a la base de datos e insertar usuarios
+        conn = get_db_connection()
+        if not conn:
+            flash('Error al conectar con la base de datos', 'danger')
+            return redirect(request.url)
+        
+        cursor = conn.cursor()
+        usuarios_creados = 0
+        errores_insercion = []
+        
+        try:
+            for usuario in usuarios:
+                try:
+                    # Verificar si el email o cédula ya existen
+                    cursor.execute("SELECT id FROM usuarios WHERE email = %s OR cedula = %s", 
+                                 (usuario['email'], usuario['cedula']))
+                    if cursor.fetchone():
+                        errores_insercion.append(f"Usuario {usuario['email']} o cédula {usuario['cedula']} ya existe")
+                        continue
+                    
+                    # Insertar usuario
+                    cursor.execute("""
+                        INSERT INTO usuarios (nombre, apellido, email, cedula, fecha_nacimiento, 
+                                           direccion, telefono, password, rol)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (usuario['nombre'], usuario['apellido'], usuario['email'], 
+                          usuario['cedula'], usuario['fecha_nacimiento'], usuario['direccion'],
+                          usuario['telefono'], usuario['password'], usuario['rol']))
+                    
+                    usuarios_creados += 1
+                    
+                except Exception as e:
+                    errores_insercion.append(f"Error creando usuario {usuario['email']}: {str(e)}")
+            
+            conn.commit()
+            
+            # Mostrar resultados
+            if usuarios_creados > 0:
+                flash(f'Se crearon exitosamente {usuarios_creados} usuarios', 'success')
+            
+            if errores_insercion:
+                for error in errores_insercion[:10]:  # Mostrar máximo 10 errores
+                    flash(error, 'warning')
+                
+        except Exception as e:
+            conn.rollback()
+            flash(f'Error al procesar usuarios: {str(e)}', 'danger')
+        finally:
+            cursor.close()
+            conn.close()
+        
+        return redirect(url_for('carga_masiva_usuarios'))
+    
+    # GET: Mostrar formulario de carga
+    return render_template('admin_carga_masiva.html')
+
+# Función para procesar archivo CSV de ahorros
+def procesar_csv_ahorros(archivo_csv):
+    """Procesa un archivo CSV con datos de ahorros y retorna lista de ahorros a crear"""
+    ahorros = []
+    errores = []
+    
+    try:
+        # Leer el archivo CSV
+        stream = io.StringIO(archivo_csv.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        # Validar que el CSV tenga las columnas necesarias
+        columnas_requeridas = ['email', 'monto', 'fecha']
+        columnas_csv = csv_reader.fieldnames or []
+        
+        for columna in columnas_requeridas:
+            if columna not in columnas_csv:
+                errores.append(f"Columna faltante: {columna}")
+                return [], errores
+        
+        # Conectar a la base de datos para validar usuarios
+        conn = get_db_connection()
+        if not conn:
+            errores.append("Error al conectar con la base de datos")
+            return [], errores
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Procesar cada fila
+        for fila_num, fila in enumerate(csv_reader, start=2):  # start=2 porque la fila 1 es el encabezado
+            try:
+                # Validar datos básicos
+                if not all(fila.get(campo, '').strip() for campo in ['email', 'monto']):
+                    errores.append(f"Fila {fila_num}: Email y monto son obligatorios")
+                    continue
+                
+                # Validar que el usuario exista
+                email = fila['email'].strip().lower()
+                cursor.execute("SELECT id, nombre, apellido FROM usuarios WHERE email = %s", (email,))
+                usuario = cursor.fetchone()
+                
+                if not usuario:
+                    errores.append(f"Fila {fila_num}: Usuario con email {email} no encontrado")
+                    continue
+                
+                # Validar monto
+                try:
+                    monto = float(fila['monto'].strip())
+                    if monto <= 0:
+                        errores.append(f"Fila {fila_num}: El monto debe ser mayor a 0")
+                        continue
+                except ValueError:
+                    errores.append(f"Fila {fila_num}: El monto debe ser un número válido")
+                    continue
+                
+                # Validar fecha (opcional, por defecto NOW())
+                fecha = fila['fecha'].strip() if fila.get('fecha', '').strip() else None
+                if fecha:
+                    try:
+                        datetime.strptime(fecha, '%Y-%m-%d')
+                    except ValueError:
+                        errores.append(f"Fila {fila_num}: La fecha debe estar en formato YYYY-MM-DD")
+                        continue
+                
+                # Crear ahorro
+                ahorro = {
+                    'usuario_id': usuario['id'],
+                    'usuario_nombre': f"{usuario['nombre']} {usuario['apellido']}",
+                    'usuario_email': email,
+                    'monto': monto,
+                    'fecha': fecha,
+                    'validado': False  # Por defecto, los ahorros masivos no están validados
+                }
+                
+                ahorros.append(ahorro)
+                
+            except Exception as e:
+                errores.append(f"Fila {fila_num}: Error procesando fila - {str(e)}")
+        
+        cursor.close()
+        conn.close()
+                
+    except Exception as e:
+        errores.append(f"Error leyendo archivo CSV: {str(e)}")
+    
+    return ahorros, errores
+
+# Ruta para carga masiva de ahorros
+@app.route('/admin/carga_masiva_ahorros', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def carga_masiva_ahorros():
+    if request.method == 'POST':
+        # Verificar que se haya subido un archivo
+        if 'archivo_csv' not in request.files:
+            flash('No se ha seleccionado ningún archivo', 'danger')
+            return redirect(request.url)
+        
+        archivo = request.files['archivo_csv']
+        if archivo.filename == '':
+            flash('No se ha seleccionado ningún archivo', 'danger')
+            return redirect(request.url)
+        
+        # Procesar el archivo CSV
+        ahorros, errores = procesar_csv_ahorros(archivo)
+        
+        if errores:
+            for error in errores:
+                flash(error, 'danger')
+            return redirect(request.url)
+        
+        if not ahorros:
+            flash('El archivo CSV no contiene ahorros válidos', 'warning')
+            return redirect(request.url)
+        
+        # Conectar a la base de datos e insertar ahorros
+        conn = get_db_connection()
+        if not conn:
+            flash('Error al conectar con la base de datos', 'danger')
+            return redirect(request.url)
+        
+        cursor = conn.cursor()
+        ahorros_creados = 0
+        errores_insercion = []
+        
+        try:
+            for ahorro in ahorros:
+                try:
+                    # Insertar ahorro
+                    if ahorro['fecha']:
+                        cursor.execute("""
+                            INSERT INTO ahorros (usuario_id, monto, fecha, validado) 
+                            VALUES (%s, %s, %s, %s)
+                        """, (ahorro['usuario_id'], ahorro['monto'], ahorro['fecha'], ahorro['validado']))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO ahorros (usuario_id, monto, validado) 
+                            VALUES (%s, %s, %s)
+                        """, (ahorro['usuario_id'], ahorro['monto'], ahorro['validado']))
+                    
+                    ahorros_creados += 1
+                    
+                except Exception as e:
+                    errores_insercion.append(f"Error creando ahorro para {ahorro['usuario_email']}: {str(e)}")
+            
+            conn.commit()
+            
+            # Mostrar resultados
+            if ahorros_creados > 0:
+                flash(f'Se crearon exitosamente {ahorros_creados} ahorros', 'success')
+            
+            if errores_insercion:
+                for error in errores_insercion[:10]:  # Mostrar máximo 10 errores
+                    flash(error, 'warning')
+                
+        except Exception as e:
+            conn.rollback()
+            flash(f'Error al procesar ahorros: {str(e)}', 'danger')
+        finally:
+            cursor.close()
+            conn.close()
+        
+        return redirect(url_for('carga_masiva_ahorros'))
+    
+    # GET: Mostrar formulario de carga
+    return render_template('admin_carga_masiva_ahorros.html')
+
+# Ruta para descargar archivo CSV de ejemplo de ahorros
+@app.route('/admin/descargar_ejemplo_csv_ahorros')
+@login_required
+@admin_required
+def descargar_ejemplo_csv_ahorros():
+    """Genera y descarga un archivo CSV de ejemplo para la carga masiva de ahorros"""
+    # Crear el contenido del CSV de ejemplo
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Escribir encabezados
+    writer.writerow(['email', 'monto', 'fecha'])
+    
+    # Escribir filas de ejemplo
+    writer.writerow(['juan.perez@email.com', '500000', '2024-01-15'])
+    writer.writerow(['maria.gomez@email.com', '750000', '2024-01-16'])
+    writer.writerow(['carlos.rodriguez@email.com', '1000000', '2024-01-17'])
+    
+    # Preparar la respuesta para descarga
+    output.seek(0)
+    response = app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': 'attachment; filename=ejemplo_ahorros.csv',
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    )
+    
+    return response
+
+# Ruta para descargar archivo CSV de ejemplo
+@app.route('/admin/descargar_ejemplo_csv')
+@login_required
+@admin_required
+def descargar_ejemplo_csv():
+    """Genera y descarga un archivo CSV de ejemplo para la carga masiva"""
+    # Crear el contenido del CSV de ejemplo
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Escribir encabezados
+    writer.writerow(['nombre', 'apellido', 'email', 'cedula', 'fecha_nacimiento', 'direccion', 'telefono'])
+    
+    # Escribir filas de ejemplo
+    writer.writerow(['Juan', 'Pérez', 'juan.perez@email.com', '12345678', '1985-03-15', 'Calle 123 #45-67', '3001234567'])
+    writer.writerow(['María', 'Gómez', 'maria.gomez@email.com', '87654321', '1990-07-22', 'Carrera 89 #12-34', '3109876543'])
+    writer.writerow(['Carlos', 'Rodríguez', 'carlos.rodriguez@email.com', '11223344', '1988-11-30', 'Avenida 45 #67-89', '3201122334'])
+    
+    # Preparar la respuesta para descarga
+    output.seek(0)
+    response = app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': 'attachment; filename=ejemplo_usuarios.csv',
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    )
+    
+    return response
 
 # Iniciar la aplicación
 # Función para verificar si los certificados SSL existen

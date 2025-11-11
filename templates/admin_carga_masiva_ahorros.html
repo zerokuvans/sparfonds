@@ -1,0 +1,149 @@
+{% extends "layout.html" %}
+
+{% block title %}Carga Masiva de Ahorros - Sparfonds{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Carga Masiva de Ahorros</h1>
+            
+            <!-- Instrucciones -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Instrucciones</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">Para cargar ahorros masivamente, siga estos pasos:</p>
+                    <ol>
+                        <li>Descargue el archivo de ejemplo haciendo clic en el botón "Descargar Ejemplo".</li>
+                        <li>Complete el archivo CSV con los datos de los ahorros.</li>
+                        <li>El archivo debe contener las siguientes columnas:</li>
+                    </ol>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Columna</th>
+                                    <th>Descripción</th>
+                                    <th>Obligatorio</th>
+                                    <th>Formato</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>email</strong></td>
+                                    <td>Email del usuario asociado al ahorro</td>
+                                    <td>Sí</td>
+                                    <td>Correo electrónico válido</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>monto</strong></td>
+                                    <td>Monto del ahorro</td>
+                                    <td>Sí</td>
+                                    <td>Número mayor a 0</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>fecha</strong></td>
+                                    <td>Fecha del ahorro</td>
+                                    <td>No</td>
+                                    <td>YYYY-MM-DD (si no se especifica, se usa la fecha actual)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-warning">
+                        <strong>Importante:</strong>
+                        <ul class="mb-0">
+                            <li>Los ahorros creados mediante carga masiva NO estarán validados por defecto.</li>
+                            <li>El sistema validará que el usuario exista antes de crear el ahorro.</li>
+                            <li>Solo se procesarán filas con datos válidos.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ejemplo de CSV -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Ejemplo de estructura CSV</h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-3 rounded">
+email,monto,fecha
+juan.perez@email.com,500000,2024-01-15
+maria.gomez@email.com,750000,2024-01-16
+carlos.rodriguez@email.com,1000000,2024-01-17</pre>
+                </div>
+            </div>
+
+            <!-- Formulario de carga -->
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Cargar Archivo de Ahorros</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data" id="formularioCarga">
+                        <div class="mb-3">
+                            <label for="archivo_csv" class="form-label">Seleccione el archivo CSV:</label>
+                            <input type="file" class="form-control" id="archivo_csv" name="archivo_csv" accept=".csv" required>
+                            <div class="form-text">Solo se permiten archivos CSV (.csv)</div>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-upload"></i> Cargar Ahorros
+                            </button>
+                            <a href="{{ url_for('descargar_ejemplo_csv_ahorros') }}" class="btn btn-outline-primary">
+                                <i class="fas fa-download"></i> Descargar Ejemplo
+                            </a>
+                            <a href="{{ url_for('admin') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Volver al Panel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const formulario = document.getElementById('formularioCarga');
+    const archivoInput = document.getElementById('archivo_csv');
+    
+    formulario.addEventListener('submit', function(e) {
+        const archivo = archivoInput.files[0];
+        
+        if (!archivo) {
+            e.preventDefault();
+            alert('Por favor seleccione un archivo');
+            return;
+        }
+        
+        // Validar extensión
+        const extension = archivo.name.split('.').pop().toLowerCase();
+        if (extension !== 'csv') {
+            e.preventDefault();
+            alert('Solo se permiten archivos CSV (.csv)');
+            return;
+        }
+        
+        // Validar tamaño (máximo 5MB)
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (archivo.size > maxSize) {
+            e.preventDefault();
+            alert('El archivo no debe superar los 5MB');
+            return;
+        }
+        
+        // Mostrar confirmación
+        const confirmacion = confirm(`¿Está seguro de cargar el archivo ${archivo.name}?\n\nEsta acción creará los ahorros en el sistema.`);
+        if (!confirmacion) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,6 +1,6 @@
-{% extends 'layout.html' %n}
+{% extends 'layout.html' %}
 
-{% block content %n}
+{% block content %}
 <div class="row">
     <div class="col-md-12 mb-4">
         <div class="card">
@@ -29,7 +29,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="fecha" class="form-label">Fecha del ahorro</label>
-                        <input type="date" class="form-control" id="fecha" name="fecha" value="{{ now.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" class="form-control" id="fecha" name="fecha" value="{{ now().strftime('%Y-%m-%d') }}" required>
                     </div>
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="validado" name="validado" value="1" checked>

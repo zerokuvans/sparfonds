@@ -9,19 +9,29 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <a href="{{ url_for('admin_ahorros') }}" class="btn btn-success btn-lg w-100 mb-3">
-                            <i class="fas fa-money-bill-wave me-2"></i> Registrar Ahorros para Ahorradores
+                            <i class="fas fa-money-bill-wave me-2"></i> Registrar Ahorros
                         </a>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <a href="{{ url_for('admin_pagos_prestamos') }}" class="btn btn-primary btn-lg w-100 mb-3">
-                            <i class="fas fa-hand-holding-usd me-2"></i> Registrar Pagos de Préstamos
+                            <i class="fas fa-hand-holding-usd me-2"></i> Registrar Pagos
                         </a>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <a href="{{ url_for('admin_historial') }}" class="btn btn-info btn-lg w-100 mb-3">
-                            <i class="fas fa-history me-2"></i> Ver Historial de Ahorradores
+                            <i class="fas fa-history me-2"></i> Ver Historial
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('carga_masiva_usuarios') }}" class="btn btn-warning btn-lg w-100 mb-3">
+                            <i class="fas fa-users me-2"></i> Carga Masiva Usuarios
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('carga_masiva_ahorros') }}" class="btn btn-outline-success btn-lg w-100 mb-3">
+                            <i class="fas fa-piggy-bank me-2"></i> Carga Masiva Ahorros
                         </a>
                     </div>
                 </div>
